@@ -46,6 +46,13 @@ declare class Canvas {
     fillPoints: FillPoint[];
     constructor(element: HTMLCanvasElement, options: CanvasOptions);
     /**
+     * 初始画布
+     */
+    initCanvas(options: CanvasOptions): {
+        x: number;
+        y: number;
+    };
+    /**
      * 计算缩放后的值
      */
     getOptions(): {
@@ -98,9 +105,21 @@ declare class Canvas {
      */
     initClickListener(): void;
     /**
+     * 初始悬空监听
+     */
+    initHoverListener(): void;
+    /**
+     * 监听界面尺寸变化
+     */
+    initResizeListener(): void;
+    /**
      * 回到中心
      */
-    backToCenter(duration?: number): void;
+    focus(point: Point, duration?: number): void;
+    /**
+     * 绘制图像
+     */
+    drawImage(src: string): Promise<void>;
 }
 declare const _default: {
     Canvas: typeof Canvas;

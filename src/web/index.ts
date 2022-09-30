@@ -18,6 +18,6 @@ import unboundedCanvas from '../index';
   if (!button) return;
 
   button.addEventListener('click', () => {
-    noBounedCanvas.backToCenter();
+    noBounedCanvas.drawImage('./assets/test.png');
   })
 })();

@@ -1,4 +1,6 @@
 import { wait } from 'vivid-wait';
+import throttle from './utils/throttle';
+import { pixelated } from './utils/pixelated-image';
 
 interface CanvasOptions {
   width: number;
@@ -24,7 +26,7 @@ const GRID_GAP = 2;
 /** 最小格子尺寸 */
 const GRID_MIN_SIZE = 5;
 /** 最大格子尺寸 */
-const GRID_MAX_SIZE = 100;
+const GRID_MAX_SIZE = 500;
 
 class Canvas {
   /**
@@ -68,35 +70,39 @@ class Canvas {
   fillPoints: FillPoint[] = [];
 
   constructor(element: HTMLCanvasElement, options: CanvasOptions) {
-    const { width, height } = options;
-
-    element.width = width * this.devicePixelRatio;
-    element.height = height * this.devicePixelRatio;
-
-    element.style.width = '100%';
-    element.style.height = '100%';
-
     this.element = element;
-    this.element.style.cursor = 'grab';
-    this.canvasCenter = {
-      x: this.element.width / this.devicePixelRatio / 2,
-      y: this.element.height / this.devicePixelRatio / 2,
-    };
-    this.contentCenter = { ...this.canvasCenter };
     this.ctx = element.getContext('2d');
 
-    this.fillPoints.push(
-      { point: [3, -3], fill: '#333' },
-      { point: [0, 0], fill: 'pink' },
-      { point: [6, -6], fill: 'pink' },
-      { point: [-6, 6], fill: 'pink' }
-    );
+    // 初始画布css样式
+    this.element.style.width = '100%';
+    this.element.style.height = '100%';
+    this.element.style.cursor = 'grab';
+
+    // 初始画布参数
+    this.canvasCenter = this.initCanvas(options);
+    this.contentCenter = { ...this.canvasCenter };
 
     this.render();
 
     this.initMoveListener();
     this.initZoomListener();
     this.initClickListener();
+    this.initHoverListener();
+    this.initResizeListener();
+  }
+
+  /**
+   * 初始画布
+   */
+  initCanvas(options: CanvasOptions) {
+    const { width, height } = options;
+
+    this.element.width = width * this.devicePixelRatio;
+    this.element.height = height * this.devicePixelRatio;
+    return {
+      x: this.element.width / this.devicePixelRatio / 2,
+      y: this.element.height / this.devicePixelRatio / 2,
+    };
   }
 
   /**
@@ -403,42 +409,93 @@ class Canvas {
     this.element.addEventListener('click', (event) => {
       const { offsetX, offsetY } = event;
 
-      this.fillPoints.push({
-        point: this.getCroodsFromView(offsetX, offsetY),
-        fill: 'pink',
-      });
+      console.log(this.getCroodsFromView(offsetX, offsetY));
+      // this.fillPoints.push({
+      //   point: this.getCroodsFromView(offsetX, offsetY),
+      //   fill: 'pink',
+      // });
 
-      this.render();
+      // this.render();
     });
+  }
+
+  /**
+   * 初始悬空监听
+   */
+  initHoverListener() {
+    // this.element.addEventListener('mousemove', (event) => {
+    //   if (this.moveInitPoint) return;
+    //   const { offsetX, offsetY } = event;
+
+    //   this.render().then(() => {
+    //     this.drawPoint(
+    //       this.getCroodsFromView(offsetX, offsetY),
+    //       '#999'
+    //     );
+    //   });
+    // });
+  }
+
+  /**
+   * 监听界面尺寸变化
+   */
+  initResizeListener() {
+    const refresh = throttle(() => {
+      this.canvasCenter = this.initCanvas({
+        width: this.element.clientWidth,
+        height: this.element.clientHeight,
+      });
+      this.render();
+    }, 50);
+    window.addEventListener('resize', refresh);
   }
 
   /**
    * 回到中心
    */
-  backToCenter (duration: number = 1500) {
-    const oldContentCenter = { ...this.contentCenter };
-    const distance = {
-      x: this.contentCenter.x - this.canvasCenter.x,
-      y: this.contentCenter.y - this.canvasCenter.y
+  focus(point: Point, duration?: number) {
+    const pointCroods = this.getCroodsFromContent(...point);
+    const oldContentCroods = { ...this.contentCenter };
+    const distanceContentCenter = {
+      x: pointCroods.x - oldContentCroods.x,
+      y: pointCroods.y - oldContentCroods.y,
     };
+    const distanceCanvasCenter = {
+      x: oldContentCroods.x - this.canvasCenter.x + distanceContentCenter.x,
+      y: oldContentCroods.y - this.canvasCenter.y + distanceContentCenter.y
+    };
+    let time = duration ?? Math.max(Math.abs(distanceCanvasCenter.x), Math.abs(distanceCanvasCenter.y)) / 150 * 1000;
+    time = Math.min(Math.max(time, 300), 2000);
 
-    let renderEnd = true;
     // 在指定时间内通过特定过渡方式变成指定值
-    wait(duration, {
+    wait(time, {
       mode: 'ease-in-out',
       onUpdate: percent => {
         this.contentCenter = {
-          x: oldContentCenter.x - distance.x * percent,
-          y: oldContentCenter.y - distance.y * percent,
+          x: oldContentCroods.x - distanceCanvasCenter.x * percent,
+          y: oldContentCroods.y - distanceCanvasCenter.y * percent,
         };
-        if (renderEnd) {
-          renderEnd = false;
-          this.render().then(() => {
-            renderEnd = true;
-          });
-        }
+        this.render();
       }
     })
+  }
+
+  /**
+   * 绘制图像
+   */
+  async drawImage(src: string) {
+    const pixelData = await pixelated(src, 16, 2);
+    if (!pixelData) return;
+    this.fillPoints.push(
+      ...pixelData.map(({ x, y, fill }) => {
+        return {
+          point: this.getCroodsFromView(x, y),
+          fill,
+        }
+      })
+    )
+    console.dir(this.fillPoints);
+    this.render();
   }
 }
 

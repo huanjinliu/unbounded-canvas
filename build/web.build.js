@@ -25,7 +25,7 @@ const config = {
     serve({
       open: true,
       contentBase: 'public/',
-      port: 8080,
+      port: 5500,
       verbose: false,
     }),
     livereload({

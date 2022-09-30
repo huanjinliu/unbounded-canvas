@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "实现无边界画布",
   "scripts": {
+    "start": "npm run dev",
     "dev": "cross-env NODE_ENV=development npm run watch --silent",
     "build": "rollup --config",
     "watch": "rollup --config -w --silent",

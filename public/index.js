@@ -1,5 +1,5 @@
 
-(function(l, r) { if (!l || l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (self.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(self.document);
+(function(l, r) { if (!l || l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (self.location.host || 'localhost').split(':')[0] + ':35730/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(self.document);
 (function () {
     'use strict';
 
@@ -30,6 +30,145 @@
 
       return __assign.apply(this, arguments);
     };
+    function __awaiter(thisArg, _arguments, P, generator) {
+      function adopt(value) {
+        return value instanceof P ? value : new P(function (resolve) {
+          resolve(value);
+        });
+      }
+
+      return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) {
+          try {
+            step(generator.next(value));
+          } catch (e) {
+            reject(e);
+          }
+        }
+
+        function rejected(value) {
+          try {
+            step(generator["throw"](value));
+          } catch (e) {
+            reject(e);
+          }
+        }
+
+        function step(result) {
+          result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
+        }
+
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+      });
+    }
+    function __generator(thisArg, body) {
+      var _ = {
+        label: 0,
+        sent: function () {
+          if (t[0] & 1) throw t[1];
+          return t[1];
+        },
+        trys: [],
+        ops: []
+      },
+          f,
+          y,
+          t,
+          g;
+      return g = {
+        next: verb(0),
+        "throw": verb(1),
+        "return": verb(2)
+      }, typeof Symbol === "function" && (g[Symbol.iterator] = function () {
+        return this;
+      }), g;
+
+      function verb(n) {
+        return function (v) {
+          return step([n, v]);
+        };
+      }
+
+      function step(op) {
+        if (f) throw new TypeError("Generator is already executing.");
+
+        while (_) try {
+          if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+          if (y = 0, t) op = [op[0] & 2, t.value];
+
+          switch (op[0]) {
+            case 0:
+            case 1:
+              t = op;
+              break;
+
+            case 4:
+              _.label++;
+              return {
+                value: op[1],
+                done: false
+              };
+
+            case 5:
+              _.label++;
+              y = op[1];
+              op = [0];
+              continue;
+
+            case 7:
+              op = _.ops.pop();
+
+              _.trys.pop();
+
+              continue;
+
+            default:
+              if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
+                _ = 0;
+                continue;
+              }
+
+              if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
+                _.label = op[1];
+                break;
+              }
+
+              if (op[0] === 6 && _.label < t[1]) {
+                _.label = t[1];
+                t = op;
+                break;
+              }
+
+              if (t && _.label < t[2]) {
+                _.label = t[2];
+
+                _.ops.push(op);
+
+                break;
+              }
+
+              if (t[2]) _.ops.pop();
+
+              _.trys.pop();
+
+              continue;
+          }
+
+          op = body.call(thisArg, _);
+        } catch (e) {
+          op = [6, e];
+          y = 0;
+        } finally {
+          f = t = 0;
+        }
+
+        if (op[0] & 5) throw op[1];
+        return {
+          value: op[0] ? op[1] : void 0,
+          done: true
+        };
+      }
+    }
 
     function n(n, e, t, o) {
       return new (t || (t = Promise))(function (r, a) {
@@ -112,6 +251,130 @@
       });
     }
 
+    /**
+     * 节流
+     * 单位时间内只执行一次
+     */
+    var throttle = function (handler, duration) {
+        var preTime;
+        return function () {
+            var time = new Date().getTime();
+            if (preTime && time - preTime < duration)
+                return;
+            preTime = time;
+            var timer = setTimeout(function () {
+                handler();
+                clearTimeout(timer);
+                preTime = undefined;
+            }, duration);
+        };
+    };
+
+    /** 加载图片 */
+    var loadImage = function (src) { return new Promise(function (resolve) {
+        var image = new Image();
+        image.src = src;
+        image.onload = function () {
+            resolve(image);
+        };
+    }); };
+
+    /** 获取图片数据 */
+    var getImageData = function (src) { return __awaiter(void 0, void 0, void 0, function () {
+        var image, img2Canvas, ctx, imageData;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, loadImage(src)];
+                case 1:
+                    image = _a.sent();
+                    if (!image)
+                        return [2 /*return*/, undefined];
+                    img2Canvas = document.createElement('canvas');
+                    img2Canvas.width = image.width;
+                    img2Canvas.height = image.height;
+                    ctx = img2Canvas.getContext('2d');
+                    if (!ctx)
+                        return [2 /*return*/, undefined];
+                    ctx.drawImage(image, 0, 0);
+                    imageData = ctx.getImageData(0, 0, img2Canvas.width, img2Canvas.height).data;
+                    return [2 /*return*/, {
+                            /**
+                             * 遍历像素值
+                             * ...r, g, b, a...每四个色值元素组成一个像素
+                             * @param {number} unitSize 每个单位的尺寸
+                             * @param {Function} callback 回调函数
+                             */
+                            mapPixels: function (unitSize, callback) {
+                                // 每个单位内部遍历
+                                var mapUnit = function (unitCol, unitRow) {
+                                    for (var y = 0; y < unitSize; y++) {
+                                        for (var x = 0; x < unitSize; x++) {
+                                            var row = unitRow * unitSize + y;
+                                            var col = unitCol * unitSize + x;
+                                            var ind = (row * image.width + col) * 4;
+                                            var r = imageData[ind];
+                                            var g = imageData[ind + 1];
+                                            var b = imageData[ind + 2];
+                                            var a = imageData[ind + 3];
+                                            callback({
+                                                x: col,
+                                                y: row,
+                                                rgba: { r: r, g: g, b: b, a: a },
+                                                unit: unitSize > 1 ? { x: x, y: y } : undefined,
+                                            });
+                                        }
+                                    }
+                                };
+                                for (var y = 0; y < Math.floor(image.height / unitSize); y++) {
+                                    for (var x = 0; x < Math.floor(image.width / unitSize); x++) {
+                                        mapUnit(x, y);
+                                    }
+                                }
+                            },
+                            width: image.width,
+                            height: image.height,
+                        }];
+            }
+        });
+    }); };
+
+    var pixelated = function (src, size, gap) { return __awaiter(void 0, void 0, void 0, function () {
+        var imageData, mapPixels, points, minX, minY;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, getImageData(src)];
+                case 1:
+                    imageData = _a.sent();
+                    if (imageData === undefined)
+                        return [2 /*return*/];
+                    mapPixels = imageData.mapPixels;
+                    points = [];
+                    minX = Infinity;
+                    minY = Infinity;
+                    // 模糊像素遍历
+                    mapPixels(size + gap, function (_a) {
+                        var x = _a.x, y = _a.y, rgba = _a.rgba, unit = _a.unit;
+                        var r = rgba.r, g = rgba.g, b = rgba.b, a = rgba.a;
+                        var halfSize = Math.floor(size / 2);
+                        if (unit && unit.x === halfSize && unit.y === halfSize) {
+                            minX = Math.min(minX, x - halfSize);
+                            minY = Math.min(minY, y - halfSize);
+                            points.push({
+                                x: x - halfSize,
+                                y: y - halfSize,
+                                fill: "rgba(".concat(r, ", ").concat(g, ", ").concat(b, ", ").concat(a, ")"),
+                            });
+                        }
+                    });
+                    return [2 /*return*/, points.map(function (item) { return ({
+                            x: item.x - minX,
+                            y: item.y - minY,
+                            fill: item.fill,
+                        }); })];
+            }
+        });
+    }); };
+
     /** 格子大小 */
     var GRID_SIZE = 16;
     /** 格子间隔 */
@@ -119,7 +382,7 @@
     /** 最小格子尺寸 */
     var GRID_MIN_SIZE = 5;
     /** 最大格子尺寸 */
-    var GRID_MAX_SIZE = 100;
+    var GRID_MAX_SIZE = 500;
     var Canvas = /** @class */ (function () {
         function Canvas(element, options) {
             /**
@@ -134,25 +397,34 @@
              *
              */
             this.fillPoints = [];
-            var width = options.width, height = options.height;
-            element.width = width * this.devicePixelRatio;
-            element.height = height * this.devicePixelRatio;
-            element.style.width = '100%';
-            element.style.height = '100%';
             this.element = element;
-            this.element.style.cursor = 'grab';
-            this.canvasCenter = {
-                x: this.element.width / this.devicePixelRatio / 2,
-                y: this.element.height / this.devicePixelRatio / 2,
-            };
-            this.contentCenter = __assign({}, this.canvasCenter);
             this.ctx = element.getContext('2d');
-            this.fillPoints.push({ point: [3, -3], fill: '#333' }, { point: [0, 0], fill: 'pink' }, { point: [6, -6], fill: 'pink' }, { point: [-6, 6], fill: 'pink' });
+            // 初始画布css样式
+            this.element.style.width = '100%';
+            this.element.style.height = '100%';
+            this.element.style.cursor = 'grab';
+            // 初始画布参数
+            this.canvasCenter = this.initCanvas(options);
+            this.contentCenter = __assign({}, this.canvasCenter);
             this.render();
             this.initMoveListener();
             this.initZoomListener();
             this.initClickListener();
+            this.initHoverListener();
+            this.initResizeListener();
         }
+        /**
+         * 初始画布
+         */
+        Canvas.prototype.initCanvas = function (options) {
+            var width = options.width, height = options.height;
+            this.element.width = width * this.devicePixelRatio;
+            this.element.height = height * this.devicePixelRatio;
+            return {
+                x: this.element.width / this.devicePixelRatio / 2,
+                y: this.element.height / this.devicePixelRatio / 2,
+            };
+        };
         /**
          * 计算缩放后的值
          */
@@ -404,40 +676,99 @@
             var _this = this;
             this.element.addEventListener('click', function (event) {
                 var offsetX = event.offsetX, offsetY = event.offsetY;
-                _this.fillPoints.push({
-                    point: _this.getCroodsFromView(offsetX, offsetY),
-                    fill: 'pink',
+                console.log(_this.getCroodsFromView(offsetX, offsetY));
+                // this.fillPoints.push({
+                //   point: this.getCroodsFromView(offsetX, offsetY),
+                //   fill: 'pink',
+                // });
+                // this.render();
+            });
+        };
+        /**
+         * 初始悬空监听
+         */
+        Canvas.prototype.initHoverListener = function () {
+            // this.element.addEventListener('mousemove', (event) => {
+            //   if (this.moveInitPoint) return;
+            //   const { offsetX, offsetY } = event;
+            //   this.render().then(() => {
+            //     this.drawPoint(
+            //       this.getCroodsFromView(offsetX, offsetY),
+            //       '#999'
+            //     );
+            //   });
+            // });
+        };
+        /**
+         * 监听界面尺寸变化
+         */
+        Canvas.prototype.initResizeListener = function () {
+            var _this = this;
+            var refresh = throttle(function () {
+                _this.canvasCenter = _this.initCanvas({
+                    width: _this.element.clientWidth,
+                    height: _this.element.clientHeight,
                 });
                 _this.render();
-            });
+            }, 50);
+            window.addEventListener('resize', refresh);
         };
         /**
          * 回到中心
          */
-        Canvas.prototype.backToCenter = function (duration) {
+        Canvas.prototype.focus = function (point, duration) {
             var _this = this;
-            if (duration === void 0) { duration = 1500; }
-            var oldContentCenter = __assign({}, this.contentCenter);
-            var distance = {
-                x: this.contentCenter.x - this.canvasCenter.x,
-                y: this.contentCenter.y - this.canvasCenter.y
+            var pointCroods = this.getCroodsFromContent.apply(this, point);
+            var oldContentCroods = __assign({}, this.contentCenter);
+            var distanceContentCenter = {
+                x: pointCroods.x - oldContentCroods.x,
+                y: pointCroods.y - oldContentCroods.y,
             };
-            var renderEnd = true;
+            var distanceCanvasCenter = {
+                x: oldContentCroods.x - this.canvasCenter.x + distanceContentCenter.x,
+                y: oldContentCroods.y - this.canvasCenter.y + distanceContentCenter.y
+            };
+            var time = duration !== null && duration !== void 0 ? duration : Math.max(Math.abs(distanceCanvasCenter.x), Math.abs(distanceCanvasCenter.y)) / 150 * 1000;
+            time = Math.min(Math.max(time, 300), 2000);
             // 在指定时间内通过特定过渡方式变成指定值
-            t(duration, {
+            t(time, {
                 mode: 'ease-in-out',
                 onUpdate: function (percent) {
                     _this.contentCenter = {
-                        x: oldContentCenter.x - distance.x * percent,
-                        y: oldContentCenter.y - distance.y * percent,
+                        x: oldContentCroods.x - distanceCanvasCenter.x * percent,
+                        y: oldContentCroods.y - distanceCanvasCenter.y * percent,
                     };
-                    if (renderEnd) {
-                        renderEnd = false;
-                        _this.render().then(function () {
-                            renderEnd = true;
-                        });
-                    }
+                    _this.render();
                 }
+            });
+        };
+        /**
+         * 绘制图像
+         */
+        Canvas.prototype.drawImage = function (src) {
+            return __awaiter(this, void 0, void 0, function () {
+                var pixelData;
+                var _a;
+                var _this = this;
+                return __generator(this, function (_b) {
+                    switch (_b.label) {
+                        case 0: return [4 /*yield*/, pixelated(src, 16, 2)];
+                        case 1:
+                            pixelData = _b.sent();
+                            if (!pixelData)
+                                return [2 /*return*/];
+                            (_a = this.fillPoints).push.apply(_a, pixelData.map(function (_a) {
+                                var x = _a.x, y = _a.y, fill = _a.fill;
+                                return {
+                                    point: _this.getCroodsFromView(x, y),
+                                    fill: fill,
+                                };
+                            }));
+                            console.dir(this.fillPoints);
+                            this.render();
+                            return [2 /*return*/];
+                    }
+                });
             });
         };
         return Canvas;
@@ -462,7 +793,7 @@
         if (!button)
             return;
         button.addEventListener('click', function () {
-            noBounedCanvas.backToCenter();
+            noBounedCanvas.drawImage('./assets/test.png');
         });
     })();
 
