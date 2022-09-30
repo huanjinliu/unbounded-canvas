@@ -394,6 +394,9 @@ var Canvas = /** @class */ (function () {
         this.fillPoints = [];
         this.element = element;
         this.ctx = element.getContext('2d');
+        // 构建缓存画布（离屏画布）
+        this.cacheElement = document.createElement('canvas');
+        this.cacheContext = this.cacheElement.getContext('2d');
         // 初始画布css样式
         this.element.style.width = '100%';
         this.element.style.height = '100%';
@@ -415,6 +418,8 @@ var Canvas = /** @class */ (function () {
         var width = options.width, height = options.height;
         this.element.width = width * this.devicePixelRatio;
         this.element.height = height * this.devicePixelRatio;
+        this.cacheElement.width = width * this.devicePixelRatio;
+        this.cacheElement.height = height * this.devicePixelRatio;
         return {
             x: this.element.width / this.devicePixelRatio / 2,
             y: this.element.height / this.devicePixelRatio / 2,
@@ -478,12 +483,13 @@ var Canvas = /** @class */ (function () {
      */
     Canvas.prototype.drawPoint = function (point, color, center) {
         if (center === void 0) { center = this.contentCenter; }
-        if (!this.ctx)
+        var ctx = this.cacheContext;
+        if (!ctx)
             return;
         var _a = this.getOptions(), size = _a.size, unitSize = _a.unitSize, halfSize = _a.halfSize;
-        this.ctx.save();
+        ctx.save();
         if (color)
-            this.ctx.fillStyle = color;
+            ctx.fillStyle = color;
         if (Array.isArray(point)) {
             var x = point[0], y = point[1];
             this.drawRect(center.x * this.devicePixelRatio + x * unitSize - halfSize, center.y * this.devicePixelRatio + y * unitSize - halfSize, size, size);
@@ -492,48 +498,49 @@ var Canvas = /** @class */ (function () {
             var x = point.x, y = point.y;
             this.drawRect(x - halfSize, y - halfSize, size, size);
         }
-        this.ctx.restore();
+        ctx.restore();
     };
     /**
      * 绘制线条
      */
     Canvas.prototype.drawLine = function (startPoint, endPoint) {
-        var _a, _b;
-        if (!this.ctx)
+        var ctx = this.cacheContext;
+        if (!ctx)
             return;
-        this.ctx.save();
-        this.ctx.beginPath();
-        (_a = this.ctx).moveTo.apply(_a, startPoint);
-        (_b = this.ctx).lineTo.apply(_b, endPoint);
-        this.ctx.strokeStyle = 'red';
-        this.ctx.lineWidth = 1;
-        this.ctx.lineCap = 'round';
-        this.ctx.setLineDash([5, 5]);
-        this.ctx.stroke();
-        this.ctx.restore();
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo.apply(ctx, startPoint);
+        ctx.lineTo.apply(ctx, endPoint);
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 1;
+        ctx.lineCap = 'round';
+        ctx.setLineDash([5, 5]);
+        ctx.stroke();
+        ctx.restore();
     };
     /**
      * 绘制圆角矩形
      */
     Canvas.prototype.drawRect = function (x, y, w, h, radius) {
         if (radius === void 0) { radius = 1 * this.devicePixelRatio * this.zoom; }
-        if (!this.ctx)
+        var ctx = this.cacheContext;
+        if (!ctx)
             return;
         var r = w > radius * 2 ? radius : 0;
-        this.ctx.save();
-        this.ctx.beginPath();
-        this.ctx.moveTo(x + r, y);
-        this.ctx.lineTo(x + w - r, y);
-        this.ctx.arcTo(x + w, y, x + w, y + r, radius);
-        this.ctx.lineTo(x + w, y + h - r);
-        this.ctx.arcTo(x + w, y + h, x + w - r, y + h, radius);
-        this.ctx.lineTo(x + r, y + h);
-        this.ctx.arcTo(x, y + h, x, y + h - r, radius);
-        this.ctx.lineTo(x, y + r);
-        this.ctx.arcTo(x, y, x + r, y, radius);
-        this.ctx.closePath();
-        this.ctx.fill();
-        this.ctx.restore();
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.arcTo(x + w, y, x + w, y + r, radius);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.arcTo(x + w, y + h, x + w - r, y + h, radius);
+        ctx.lineTo(x + r, y + h);
+        ctx.arcTo(x, y + h, x, y + h - r, radius);
+        ctx.lineTo(x, y + r);
+        ctx.arcTo(x, y, x + r, y, radius);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
     };
     /**
      * 渲染画布
@@ -541,11 +548,12 @@ var Canvas = /** @class */ (function () {
     Canvas.prototype.render = function (contentCenter) {
         var _this = this;
         if (contentCenter === void 0) { contentCenter = this.contentCenter; }
+        var ctx = this.cacheContext;
         return new Promise(function (resolve, reject) {
             window.requestAnimationFrame(function () {
-                if (!_this.ctx)
+                if (!ctx)
                     return reject();
-                _this.ctx.clearRect(0, 0, _this.element.width, _this.element.height);
+                ctx.clearRect(0, 0, _this.element.width, _this.element.height);
                 var _a = _this.getOptions(), size = _a.size, unitSize = _a.unitSize, halfSize = _a.halfSize;
                 // 计算绘制起始点
                 var calcDrawStartPoint = function () {
@@ -568,7 +576,7 @@ var Canvas = /** @class */ (function () {
                 };
                 var drawStartPoint = calcDrawStartPoint();
                 // 绘制颜色
-                _this.ctx.fillStyle = '#f2f2f2';
+                ctx.fillStyle = '#f2f2f2';
                 // 绘制矩形格子
                 for (var y = drawStartPoint.y; y < _this.element.height + size; y += unitSize) {
                     for (var x = drawStartPoint.x; x < _this.element.width + size; x += unitSize) {
@@ -583,6 +591,10 @@ var Canvas = /** @class */ (function () {
                 // 绘制线条用于参考
                 _this.drawLine([_this.element.width / 2, 0], [_this.element.width / 2, _this.element.height]);
                 _this.drawLine([0, _this.element.height / 2], [_this.element.width, _this.element.height / 2]);
+                if (_this.ctx) {
+                    _this.ctx.clearRect(0, 0, _this.element.width, _this.element.height);
+                    _this.ctx.drawImage(_this.cacheElement, 0, 0);
+                }
                 resolve();
             });
         });
@@ -759,7 +771,6 @@ var Canvas = /** @class */ (function () {
                                 fill: fill,
                             };
                         }));
-                        console.dir(this.fillPoints);
                         this.render();
                         return [2 /*return*/];
                 }

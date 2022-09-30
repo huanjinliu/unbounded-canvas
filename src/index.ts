@@ -40,6 +40,16 @@ class Canvas {
   ctx: CanvasRenderingContext2D | null;
 
   /**
+   * 缓存画布
+   */
+  cacheElement: HTMLCanvasElement;
+
+  /**
+   * 缓存画布上下文
+   */
+  cacheContext: CanvasRenderingContext2D | null;
+
+  /**
    * 默认中心点
    */
   canvasCenter: PointObject;
@@ -73,6 +83,10 @@ class Canvas {
     this.element = element;
     this.ctx = element.getContext('2d');
 
+    // 构建缓存画布（离屏画布）
+    this.cacheElement = document.createElement('canvas');
+    this.cacheContext = this.cacheElement.getContext('2d');
+
     // 初始画布css样式
     this.element.style.width = '100%';
     this.element.style.height = '100%';
@@ -99,6 +113,10 @@ class Canvas {
 
     this.element.width = width * this.devicePixelRatio;
     this.element.height = height * this.devicePixelRatio;
+
+    this.cacheElement.width = width * this.devicePixelRatio;
+    this.cacheElement.height = height * this.devicePixelRatio;
+
     return {
       x: this.element.width / this.devicePixelRatio / 2,
       y: this.element.height / this.devicePixelRatio / 2,
@@ -180,10 +198,11 @@ class Canvas {
     color?: string,
     center: PointObject = this.contentCenter
   ) {
-    if (!this.ctx) return;
+    const ctx = this.cacheContext;
+    if (!ctx) return;
     const { size, unitSize, halfSize } = this.getOptions();
-    this.ctx.save();
-    if (color) this.ctx.fillStyle = color;
+    ctx.save();
+    if (color) ctx.fillStyle = color;
     if (Array.isArray(point)) {
       const [x, y] = point;
       this.drawRect(
@@ -196,24 +215,25 @@ class Canvas {
       const { x, y } = point;
       this.drawRect(x - halfSize, y - halfSize, size, size);
     }
-    this.ctx.restore();
+    ctx.restore();
   }
 
   /**
    * 绘制线条
    */
   drawLine(startPoint: Point, endPoint: Point) {
-    if (!this.ctx) return;
-    this.ctx.save();
-    this.ctx.beginPath();
-    this.ctx.moveTo(...startPoint);
-    this.ctx.lineTo(...endPoint);
-    this.ctx.strokeStyle = 'red';
-    this.ctx.lineWidth = 1;
-    this.ctx.lineCap = 'round';
-    this.ctx.setLineDash([5, 5]);
-    this.ctx.stroke();
-    this.ctx.restore();
+    const ctx = this.cacheContext;
+    if (!ctx) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(...startPoint);
+    ctx.lineTo(...endPoint);
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 1;
+    ctx.lineCap = 'round';
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+    ctx.restore();
   }
 
   /**
@@ -226,32 +246,34 @@ class Canvas {
     h: number,
     radius: number = 1 * this.devicePixelRatio * this.zoom,
   ) {
-    if (!this.ctx) return;
+    const ctx = this.cacheContext;
+    if (!ctx) return;
     const r = w > radius * 2 ? radius : 0;
-    this.ctx.save();
-    this.ctx.beginPath();
-    this.ctx.moveTo(x + r, y);
-    this.ctx.lineTo(x + w - r, y);
-    this.ctx.arcTo(x + w, y, x + w, y + r, radius);
-    this.ctx.lineTo(x + w, y + h - r);
-    this.ctx.arcTo(x + w, y + h, x + w - r, y + h, radius);
-    this.ctx.lineTo(x + r, y + h);
-    this.ctx.arcTo(x, y + h, x, y + h - r, radius);
-    this.ctx.lineTo(x, y + r);
-    this.ctx.arcTo(x, y, x + r, y, radius);
-    this.ctx.closePath();
-    this.ctx.fill();
-    this.ctx.restore();
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, radius);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, radius);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, radius);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, radius);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   /**
    * 渲染画布
    */
   render(contentCenter = this.contentCenter) {
+    const ctx = this.cacheContext;
     return new Promise<void>((resolve, reject) => {
       window.requestAnimationFrame(() => {
-        if (!this.ctx) return reject();
-        this.ctx.clearRect(0, 0, this.element.width, this.element.height);
+        if (!ctx) return reject();
+        ctx.clearRect(0, 0, this.element.width, this.element.height);
   
         const { size, unitSize, halfSize } = this.getOptions();
   
@@ -280,7 +302,7 @@ class Canvas {
         const drawStartPoint = calcDrawStartPoint();
   
         // 绘制颜色
-        this.ctx.fillStyle = '#f2f2f2';
+        ctx.fillStyle = '#f2f2f2';
         // 绘制矩形格子
         for (
           let y = drawStartPoint.y;
@@ -310,6 +332,11 @@ class Canvas {
           [0, this.element.height / 2],
           [this.element.width, this.element.height / 2]
         );
+
+        if (this.ctx) {
+          this.ctx.clearRect(0, 0, this.element.width, this.element.height);
+          this.ctx.drawImage(this.cacheElement, 0, 0)
+        };
 
         resolve();
       });
@@ -494,7 +521,6 @@ class Canvas {
         }
       })
     )
-    console.dir(this.fillPoints);
     this.render();
   }
 }

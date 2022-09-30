@@ -21,6 +21,14 @@ declare class Canvas {
      */
     ctx: CanvasRenderingContext2D | null;
     /**
+     * 缓存画布
+     */
+    cacheElement: HTMLCanvasElement;
+    /**
+     * 缓存画布上下文
+     */
+    cacheContext: CanvasRenderingContext2D | null;
+    /**
      * 默认中心点
      */
     canvasCenter: PointObject;
