@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>unbounded-canvas</title>
+  <style>
+    * {
+      padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+    }
+    body {
+      height: 100vh;
+      overflow: hidden;
+    }
+    #back_center {
+      position: fixed;
+      bottom: 20px;
+      line-height: 28px;
+      padding: 6px 20px;
+      color: #fff;
+      background-color: rgb(51, 51, 51);
+      border-radius: 20px;
+      z-index: 1;
+      left: 50%;
+      border: none;
+      cursor: pointer;
+      transform: translateX(-50%);
+      opacity: 0.8;
+      transition: .2s;
+    }
+    #back_center:hover {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="_canvas"></canvas>
+  <button id="back_center">回到中心</button>
+  <script src="./index.js" async></script>
+</body>
+</html>
