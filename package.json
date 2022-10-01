@@ -18,6 +18,8 @@
     "@rollup/plugin-commonjs": "^22.0.2",
     "@rollup/plugin-node-resolve": "^14.1.0",
     "@rollup/plugin-typescript": "^8.5.0",
+    "@types/fontfaceobserver": "^2.1.0",
+    "@types/uuid": "^8.3.4",
     "cross-env": "^7.0.3",
     "rollup": "^2.79.1",
     "rollup-plugin-clear": "^2.0.7",
@@ -30,6 +32,8 @@
   "brower": "dist/unboundedCanvas.js",
   "module": "dist/unboundedCanvas.esm.js",
   "dependencies": {
+    "fontfaceobserver": "^2.3.0",
+    "uuid": "^9.0.0",
     "vivid-wait": "^1.0.6"
   }
 }

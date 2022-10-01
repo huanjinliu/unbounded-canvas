@@ -170,6 +170,15 @@
         };
       }
     }
+    function __spreadArray(to, from, pack) {
+      if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+        if (ar || !(i in from)) {
+          if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+          ar[i] = from[i];
+        }
+      }
+      return to.concat(ar || Array.prototype.slice.call(from));
+    }
 
     function n(n, e, t, o) {
       return new (t || (t = Promise))(function (r, a) {
@@ -252,543 +261,570 @@
       });
     }
 
-    /**
-     * 节流
-     * 单位时间内只执行一次
-     */
-    var throttle = function (handler, duration) {
-        var preTime;
-        return function () {
-            var time = new Date().getTime();
-            if (preTime && time - preTime < duration)
-                return;
-            preTime = time;
-            var timer = setTimeout(function () {
-                handler();
-                clearTimeout(timer);
-                preTime = undefined;
-            }, duration);
-        };
-    };
-
-    /** 加载图片 */
-    var loadImage = function (src) { return new Promise(function (resolve) {
-        var image = new Image();
-        image.src = src;
-        image.onload = function () {
-            resolve(image);
-        };
-    }); };
-
-    /** 获取图片数据 */
-    var getImageData = function (src) { return __awaiter(void 0, void 0, void 0, function () {
-        var image, img2Canvas, ctx, imageData;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0: return [4 /*yield*/, loadImage(src)];
-                case 1:
-                    image = _a.sent();
-                    if (!image)
-                        return [2 /*return*/, undefined];
-                    img2Canvas = document.createElement('canvas');
-                    img2Canvas.width = image.width;
-                    img2Canvas.height = image.height;
-                    ctx = img2Canvas.getContext('2d');
-                    if (!ctx)
-                        return [2 /*return*/, undefined];
-                    ctx.drawImage(image, 0, 0);
-                    imageData = ctx.getImageData(0, 0, img2Canvas.width, img2Canvas.height).data;
-                    return [2 /*return*/, {
-                            /**
-                             * 遍历像素值
-                             * ...r, g, b, a...每四个色值元素组成一个像素
-                             * @param {number} unitSize 每个单位的尺寸
-                             * @param {Function} callback 回调函数
-                             */
-                            mapPixels: function (unitSize, callback) {
-                                // 每个单位内部遍历
-                                var mapUnit = function (unitCol, unitRow) {
-                                    for (var y = 0; y < unitSize; y++) {
-                                        for (var x = 0; x < unitSize; x++) {
-                                            var row = unitRow * unitSize + y;
-                                            var col = unitCol * unitSize + x;
-                                            var ind = (row * image.width + col) * 4;
-                                            var r = imageData[ind];
-                                            var g = imageData[ind + 1];
-                                            var b = imageData[ind + 2];
-                                            var a = imageData[ind + 3];
-                                            callback({
-                                                x: col,
-                                                y: row,
-                                                rgba: { r: r, g: g, b: b, a: a },
-                                                unit: unitSize > 1 ? { x: x, y: y } : undefined,
-                                            });
-                                        }
-                                    }
-                                };
-                                for (var y = 0; y < Math.floor(image.height / unitSize); y++) {
-                                    for (var x = 0; x < Math.floor(image.width / unitSize); x++) {
-                                        mapUnit(x, y);
-                                    }
-                                }
-                            },
-                            width: image.width,
-                            height: image.height,
-                        }];
-            }
-        });
-    }); };
-
-    var pixelated = function (src, size, gap) { return __awaiter(void 0, void 0, void 0, function () {
-        var imageData, mapPixels, points, minX, minY;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0: return [4 /*yield*/, getImageData(src)];
-                case 1:
-                    imageData = _a.sent();
-                    if (imageData === undefined)
-                        return [2 /*return*/];
-                    mapPixels = imageData.mapPixels;
-                    points = [];
-                    minX = Infinity;
-                    minY = Infinity;
-                    // 模糊像素遍历
-                    mapPixels(size + gap, function (_a) {
-                        var x = _a.x, y = _a.y, rgba = _a.rgba, unit = _a.unit;
-                        var r = rgba.r, g = rgba.g, b = rgba.b, a = rgba.a;
-                        var halfSize = Math.floor(size / 2);
-                        if (unit && unit.x === halfSize && unit.y === halfSize) {
-                            minX = Math.min(minX, x - halfSize);
-                            minY = Math.min(minY, y - halfSize);
-                            points.push({
-                                x: x - halfSize,
-                                y: y - halfSize,
-                                fill: "rgba(".concat(r, ", ").concat(g, ", ").concat(b, ", ").concat(a, ")"),
-                            });
-                        }
-                    });
-                    return [2 /*return*/, points.map(function (item) { return ({
-                            x: item.x - minX,
-                            y: item.y - minY,
-                            fill: item.fill,
-                        }); })];
-            }
-        });
-    }); };
-
-    /** 格子大小 */
-    var GRID_SIZE = 16;
-    /** 格子间隔 */
-    var GRID_GAP = 2;
-    /** 最小格子尺寸 */
-    var GRID_MIN_SIZE = 5;
-    /** 最大格子尺寸 */
-    var GRID_MAX_SIZE = 500;
-    var Canvas = /** @class */ (function () {
-        function Canvas(element, options) {
+    /** 默认空坐标 */
+    var EMPTY_CROODINATE = { x: 0, y: 0 };
+    /** 默认缩放限制 */
+    var DEFAULT_ZOOM_LIMIT = [1, 100];
+    var UnboundedCanvas = /** @class */ (function () {
+        function UnboundedCanvas(element, options) {
+            var _a, _b;
+            /**
+             * 单位像素格
+             */
+            this.unitSize = 1;
+            /**
+             * 像素单元格间距
+             */
+            this.unitGap = 0;
+            /**
+             * 画布边界
+             */
+            this.bound = [Infinity, Infinity];
             /**
              * 缩放值
              */
             this.zoom = 1;
             /**
-             * 像素倍率
+             * 是否正在绘制
              */
-            this.devicePixelRatio = window.devicePixelRatio;
+            this.isRendering = false;
             /**
-             *
+             * 是否正在聚焦
              */
-            this.fillPoints = [];
-            this.element = element;
-            this.ctx = element.getContext('2d');
+            this.isFocuing = false;
+            /**
+             * 渲染监听器
+             */
+            this._renderListeners = [];
+            /**
+             * 记录监听器
+             */
+            this._listeners = [];
+            var _c = options.ignoreDevicePixelRatio, ignoreDevicePixelRatio = _c === void 0 ? false : _c, unit = options.unit, bound = options.bound;
+            var _d = unit || {}, _e = _d.zoomLimit, zoomLimit = _e === void 0 ? DEFAULT_ZOOM_LIMIT : _e, _f = _d.size, unitSize = _f === void 0 ? 1 : _f, _g = _d.gap, unitGap = _g === void 0 ? 0 : _g, _h = _d.sticky, sticky = _h === void 0 ? false : _h;
+            this._element = element;
+            this._ctx = element.getContext('2d');
+            this.devicePixelRatio = ignoreDevicePixelRatio
+                ? 1
+                : window.devicePixelRatio;
+            // 单位像素格至少需要1像素
+            this.unitSize = Math.max(1, Math.ceil(unitSize));
+            // 单位像素格间距不允许小于0
+            this.unitGap = Math.max(0, Math.ceil(unitGap));
+            // 是否移动粘连
+            this.sticky = sticky;
+            // 缩放必须付费需求
+            this.zoomLimit = zoomLimit[0] > 0 && zoomLimit[0] < zoomLimit[1]
+                ? zoomLimit
+                : DEFAULT_ZOOM_LIMIT;
             // 构建缓存画布（离屏画布）
-            this.cacheElement = document.createElement('canvas');
-            this.cacheContext = this.cacheElement.getContext('2d');
-            // 初始画布css样式
-            this.element.style.width = '100%';
-            this.element.style.height = '100%';
-            this.element.style.cursor = 'grab';
+            this._cacheElement = document.createElement('canvas');
+            this._cacheContext = this._cacheElement.getContext('2d');
+            // 记录初始尺寸，用于销毁时恢复尺寸
+            this._stores = {
+                width: this._element.width,
+                height: this._element.height,
+            };
             // 初始画布参数
-            this.canvasCenter = this.initCanvas(options);
-            this.contentCenter = __assign({}, this.canvasCenter);
-            this.render();
-            this.initMoveListener();
-            this.initZoomListener();
-            this.initClickListener();
-            this.initHoverListener();
-            this.initResizeListener();
+            this.initOptions(options);
+            // 初始画布中心点
+            this._canvasCenter = {
+                x: this._element.width / this.devicePixelRatio / 2,
+                y: this._element.height / this.devicePixelRatio / 2,
+            };
+            // 初始边界，默认无边界（无限拖拽）
+            if (bound)
+                this.bound = [
+                    Math.max(this._element.width / this.devicePixelRatio, (_a = bound[0]) !== null && _a !== void 0 ? _a : Infinity),
+                    Math.max(this._element.height / this.devicePixelRatio, (_b = bound[1]) !== null && _b !== void 0 ? _b : Infinity),
+                ];
+            // 初始内容中心点
+            this._contentCenter = __assign({}, this._canvasCenter);
+            // 初始画布监听器
+            this.initListeners();
         }
         /**
          * 初始画布
          */
-        Canvas.prototype.initCanvas = function (options) {
-            var width = options.width, height = options.height;
-            this.element.width = width * this.devicePixelRatio;
-            this.element.height = height * this.devicePixelRatio;
-            this.cacheElement.width = width * this.devicePixelRatio;
-            this.cacheElement.height = height * this.devicePixelRatio;
+        UnboundedCanvas.prototype.initOptions = function (options) {
+            if (!this._element || !this._cacheElement)
+                return;
+            // 尺寸至少大于等于1
+            var width = Math.max(1, Math.ceil(options.width));
+            var height = Math.max(1, Math.ceil(options.height));
+            this._element.width = width * this.devicePixelRatio;
+            this._element.height = height * this.devicePixelRatio;
+            // 缓存画布
+            this._cacheElement.width = width * this.devicePixelRatio;
+            this._cacheElement.height = height * this.devicePixelRatio;
+            // 初始画布css样式
+            this._element.style.width = "".concat(width, "px");
+            this._element.style.height = "".concat(height, "px");
+            this._element.style.cursor = 'grab';
+        };
+        /**
+         * 获取画布参数
+         */
+        UnboundedCanvas.prototype.getOptions = function () {
+            var _a, _b, _c, _d, _e, _f;
             return {
-                x: this.element.width / this.devicePixelRatio / 2,
-                y: this.element.height / this.devicePixelRatio / 2,
+                width: (_b = (_a = this._element) === null || _a === void 0 ? void 0 : _a.width) !== null && _b !== void 0 ? _b : 0,
+                height: (_d = (_c = this._element) === null || _c === void 0 ? void 0 : _c.height) !== null && _d !== void 0 ? _d : 0,
+                devicePixelRatio: this.devicePixelRatio,
+                unitSize: this.unitSize * this.devicePixelRatio * this.zoom,
+                unitGap: this.unitGap * this.devicePixelRatio * this.zoom,
+                zoom: this.zoom,
+                zoomLimit: this.zoomLimit,
+                canvasCenter: (_e = this._canvasCenter) !== null && _e !== void 0 ? _e : __assign({}, EMPTY_CROODINATE),
+                contentCenter: (_f = this._contentCenter) !== null && _f !== void 0 ? _f : __assign({}, EMPTY_CROODINATE),
             };
         };
         /**
-         * 计算缩放后的值
+         * 设置画布参数
          */
-        Canvas.prototype.getOptions = function () {
-            var size = GRID_SIZE * this.zoom * this.devicePixelRatio;
-            var gap = GRID_GAP * this.zoom * this.devicePixelRatio;
-            return {
-                gap: gap,
-                size: size,
-                halfSize: size / 2,
-                unitSize: size + gap,
+        UnboundedCanvas.prototype.setOptions = function (options) {
+            var _a = this.getOptions(), width = _a.width, height = _a.height;
+            this.initOptions(options);
+            this._canvasCenter = {
+                x: width / this.devicePixelRatio / 2,
+                y: height / this.devicePixelRatio / 2,
             };
+            this.render();
         };
         /**
-         * 根据页面坐标获取方块坐标（相对于内容中心而不是画布中心）
+         * 初始画布监听器
          */
-        Canvas.prototype.getCroodsFromView = function (x, y) {
-            var _a = this.getOptions(), unitSize = _a.unitSize, halfSize = _a.halfSize;
+        UnboundedCanvas.prototype.initListeners = function () {
+            this.initMoveListener();
+            this.initZoomListener();
+        };
+        /**
+         * 取得绘制上下文
+         */
+        UnboundedCanvas.prototype.getContext = function () {
+            return this._cacheContext;
+        };
+        /**
+         * 根据页面坐标获取单位像素坐标（相对于内容中心而不是画布中心）
+         */
+        UnboundedCanvas.prototype.viewCroods2UnitPoint = function (x, y) {
+            var _a = this.getOptions(), unitSize = _a.unitSize, unitGap = _a.unitGap, canvasCenter = _a.canvasCenter;
+            var size = unitSize + unitGap;
+            var halfSize = unitSize / 2;
             // 计算点击坐标到画布中心的距离
             var distanceCanvasCenter = {
-                x: x - this.canvasCenter.x,
-                y: y - this.canvasCenter.y,
-            };
-            // 计算点击坐标到内容中心的距离
-            var distanceContentCenter = {
-                x: distanceCanvasCenter.x + (this.canvasCenter.x - this.contentCenter.x),
-                y: distanceCanvasCenter.y + (this.canvasCenter.y - this.contentCenter.y),
+                x: x - canvasCenter.x,
+                y: y - canvasCenter.y,
             };
             return [
-                Math.floor((distanceContentCenter.x * this.devicePixelRatio + halfSize) / unitSize),
-                Math.floor((distanceContentCenter.y * this.devicePixelRatio + halfSize) / unitSize),
+                Math.floor((distanceCanvasCenter.x * this.devicePixelRatio + halfSize) / size),
+                Math.floor((distanceCanvasCenter.y * this.devicePixelRatio + halfSize) / size),
             ];
         };
         /**
-         * 根据相对于内容中心的方块中心坐标获取页面坐标
+         * 根据单位像素坐标获取页面坐标（相对于画布左上角）
          */
-        Canvas.prototype.getCroodsFromContent = function (x, y) {
-            var unitSize = this.getOptions().unitSize;
+        UnboundedCanvas.prototype.unitPoint2ViewCroods = function (x, y, contentCenter) {
+            var _a;
+            if (contentCenter === void 0) { contentCenter = (_a = this._contentCenter) !== null && _a !== void 0 ? _a : __assign({}, EMPTY_CROODINATE); }
+            var _b = this.getOptions(), unitSize = _b.unitSize, unitGap = _b.unitGap, canvasCenter = _b.canvasCenter;
+            var size = unitSize + unitGap;
             // 方块中心到内容中心位置
             var blockPosition = {
-                x: (x * unitSize) / this.devicePixelRatio,
-                y: (y * unitSize) / this.devicePixelRatio,
+                x: (x * size) / this.devicePixelRatio,
+                y: (y * size) / this.devicePixelRatio,
             };
             // 方块中心到画布中心的距离
             var distanceCanvasCenter = {
-                x: blockPosition.x - (this.canvasCenter.x - this.contentCenter.x),
-                y: blockPosition.y - (this.canvasCenter.y - this.contentCenter.y),
+                x: blockPosition.x - (canvasCenter.x - contentCenter.x),
+                y: blockPosition.y - (canvasCenter.y - contentCenter.y),
             };
             return {
-                x: distanceCanvasCenter.x + this.canvasCenter.x,
-                y: distanceCanvasCenter.y + this.canvasCenter.y,
+                x: distanceCanvasCenter.x + canvasCenter.x,
+                y: distanceCanvasCenter.y + canvasCenter.y,
             };
         };
         /**
-         * 绘制某坐标方块
+         * 计算单位像素格子绘制起始点
+         * @param contentCenter 指定内容中心点
          */
-        Canvas.prototype.drawPoint = function (point, color, center) {
-            if (center === void 0) { center = this.contentCenter; }
-            var ctx = this.cacheContext;
-            if (!ctx)
-                return;
-            var _a = this.getOptions(), size = _a.size, unitSize = _a.unitSize, halfSize = _a.halfSize;
-            ctx.save();
-            if (color)
-                ctx.fillStyle = color;
-            if (Array.isArray(point)) {
-                var x = point[0], y = point[1];
-                this.drawRect(center.x * this.devicePixelRatio + x * unitSize - halfSize, center.y * this.devicePixelRatio + y * unitSize - halfSize, size, size);
-            }
-            else {
-                var x = point.x, y = point.y;
-                this.drawRect(x - halfSize, y - halfSize, size, size);
-            }
-            ctx.restore();
-        };
-        /**
-         * 绘制线条
-         */
-        Canvas.prototype.drawLine = function (startPoint, endPoint) {
-            var ctx = this.cacheContext;
-            if (!ctx)
-                return;
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo.apply(ctx, startPoint);
-            ctx.lineTo.apply(ctx, endPoint);
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 1;
-            ctx.lineCap = 'round';
-            ctx.setLineDash([5, 5]);
-            ctx.stroke();
-            ctx.restore();
-        };
-        /**
-         * 绘制圆角矩形
-         */
-        Canvas.prototype.drawRect = function (x, y, w, h, radius) {
-            if (radius === void 0) { radius = 1 * this.devicePixelRatio * this.zoom; }
-            var ctx = this.cacheContext;
-            if (!ctx)
-                return;
-            var r = w > radius * 2 ? radius : 0;
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(x + r, y);
-            ctx.lineTo(x + w - r, y);
-            ctx.arcTo(x + w, y, x + w, y + r, radius);
-            ctx.lineTo(x + w, y + h - r);
-            ctx.arcTo(x + w, y + h, x + w - r, y + h, radius);
-            ctx.lineTo(x + r, y + h);
-            ctx.arcTo(x, y + h, x, y + h - r, radius);
-            ctx.lineTo(x, y + r);
-            ctx.arcTo(x, y, x + r, y, radius);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
+        UnboundedCanvas.prototype.getUnitFirstPoint = function (contentCenter) {
+            var _a;
+            if (contentCenter === void 0) { contentCenter = (_a = this._canvasCenter) !== null && _a !== void 0 ? _a : __assign({}, EMPTY_CROODINATE); }
+            var _b = this.getOptions(), unitSize = _b.unitSize, unitGap = _b.unitGap;
+            var size = unitSize + unitGap;
+            var halfSize = unitSize / 2;
+            // 中心方块左上角与画布左上角的距离
+            var centerOffset = {
+                x: contentCenter.x * this.devicePixelRatio - halfSize,
+                y: contentCenter.y * this.devicePixelRatio - halfSize,
+            };
+            // 中心方块左上角与画布左上角的距离可以再加多少个矩形
+            var rest = {
+                top: Math.ceil(centerOffset.y / size),
+                left: Math.ceil(centerOffset.x / size),
+            };
+            // 单位格绘制矩形起始点
+            var unitDrawStartPoint = {
+                x: centerOffset.x - rest.left * size,
+                y: centerOffset.y - rest.top * size,
+            };
+            return unitDrawStartPoint;
         };
         /**
          * 渲染画布
          */
-        Canvas.prototype.render = function (contentCenter) {
+        UnboundedCanvas.prototype.render = function () {
             var _this = this;
-            if (contentCenter === void 0) { contentCenter = this.contentCenter; }
-            var ctx = this.cacheContext;
-            return new Promise(function (resolve, reject) {
-                window.requestAnimationFrame(function () {
-                    if (!ctx)
-                        return reject();
-                    ctx.clearRect(0, 0, _this.element.width, _this.element.height);
-                    var _a = _this.getOptions(), size = _a.size, unitSize = _a.unitSize, halfSize = _a.halfSize;
-                    // 计算绘制起始点
-                    var calcDrawStartPoint = function () {
-                        // 中心方块左上角与画布左上角的距离
-                        var centerOffset = {
-                            x: contentCenter.x * _this.devicePixelRatio - halfSize,
-                            y: contentCenter.y * _this.devicePixelRatio - halfSize,
-                        };
-                        // 中心方块左上角与画布左上角的距离可以再加多少个矩形
-                        var rest = {
-                            top: Math.ceil(centerOffset.y / unitSize),
-                            left: Math.ceil(centerOffset.x / unitSize),
-                        };
-                        // 绘制矩形起始点
-                        var drawStartPoint = {
-                            x: centerOffset.x - rest.left * unitSize,
-                            y: centerOffset.y - rest.top * unitSize,
-                        };
-                        return drawStartPoint;
-                    };
-                    var drawStartPoint = calcDrawStartPoint();
-                    // 绘制颜色
-                    ctx.fillStyle = '#f2f2f2';
-                    // 绘制矩形格子
-                    for (var y = drawStartPoint.y; y < _this.element.height + size; y += unitSize) {
-                        for (var x = drawStartPoint.x; x < _this.element.width + size; x += unitSize) {
-                            _this.drawRect(x, y, size, size);
+            var renderPromise = function () {
+                return new Promise(function (reslove) {
+                    window.requestAnimationFrame(function () {
+                        var ctx = _this.getContext();
+                        if (!ctx)
+                            return;
+                        var _a = _this.getOptions(), width = _a.width, height = _a.height;
+                        ctx.clearRect(0, 0, width, height);
+                        _this._renderListeners.map(function (_a) {
+                            var handler = _a.handler, options = _a.options;
+                            return handler(options);
+                        });
+                        if (_this._ctx && _this._cacheElement) {
+                            _this._ctx.clearRect(0, 0, width, height);
+                            _this._ctx.drawImage(_this._cacheElement, 0, 0);
                         }
-                    }
-                    // 绘制中心方块用于参考
-                    _this.fillPoints.forEach(function (_a) {
-                        var point = _a.point, fill = _a.fill;
-                        _this.drawPoint(point, fill, contentCenter);
+                        reslove();
                     });
-                    // 绘制线条用于参考
-                    _this.drawLine([_this.element.width / 2, 0], [_this.element.width / 2, _this.element.height]);
-                    _this.drawLine([0, _this.element.height / 2], [_this.element.width, _this.element.height / 2]);
-                    if (_this.ctx) {
-                        _this.ctx.clearRect(0, 0, _this.element.width, _this.element.height);
-                        _this.ctx.drawImage(_this.cacheElement, 0, 0);
-                    }
-                    resolve();
                 });
-            });
+            };
+            // 绘制下一个
+            var drawNext = function () {
+                if (_this.nextRender) {
+                    var draw = _this.nextRender;
+                    _this.nextRender = undefined;
+                    if (draw)
+                        draw().then(drawNext);
+                }
+                else
+                    _this.isRendering = false;
+            };
+            if (this.isRendering) {
+                this.nextRender = renderPromise;
+            }
+            else {
+                this.isRendering = true;
+                renderPromise().then(drawNext);
+            }
+        };
+        /**
+         * 边界约束
+         */
+        UnboundedCanvas.prototype.limitBound = function (contentCenter) {
+            var _a = this.getOptions(), canvasCenter = _a.canvasCenter, zoom = _a.zoom;
+            var _b = this.bound, boundWidth = _b[0], boundHeight = _b[1];
+            var _c = [
+                boundWidth / 2 * zoom,
+                boundHeight / 2 * zoom,
+            ], halfBoundWidth = _c[0], halfBoundHeight = _c[1];
+            var newX = contentCenter.x, newY = contentCenter.y;
+            // 左边界检测
+            if (newX > halfBoundWidth)
+                newX = halfBoundWidth;
+            // 右边界检测
+            if (newX < -halfBoundWidth + canvasCenter.x * 2)
+                newX = -halfBoundWidth + canvasCenter.x * 2;
+            // 上边界检测
+            if (newY > halfBoundHeight)
+                newY = halfBoundHeight;
+            // 下边界检测
+            if (newY < -halfBoundHeight + canvasCenter.y * 2)
+                newY = -halfBoundHeight + canvasCenter.y * 2;
+            return { x: newX, y: newY };
         };
         /**
          * 缩放
          */
-        Canvas.prototype.handleZoom = function (newZoom, focusPoint) {
-            if (focusPoint === void 0) { focusPoint = this.canvasCenter; }
+        UnboundedCanvas.prototype.handleZoom = function (newZoom, focusPoint) {
+            var _this = this;
+            var _a;
+            if (focusPoint === void 0) { focusPoint = (_a = this._canvasCenter) !== null && _a !== void 0 ? _a : __assign({}, EMPTY_CROODINATE); }
+            var _b = this.getOptions(), width = _b.width, height = _b.height, unitSize = _b.unitSize, contentCenter = _b.contentCenter, devicePixelRatio = _b.devicePixelRatio;
+            var _c = this.bound, boundWidth = _c[0], boundHeight = _c[1];
             var preZoom = this.zoom;
-            this.zoom = newZoom;
+            // 如果会导致内容尺寸小于画布尺寸不执行缩放
+            var _d = [
+                width / boundWidth / devicePixelRatio,
+                height / boundHeight / devicePixelRatio,
+            ], xMinZoom = _d[0], yMinZoom = _d[1];
+            this.zoom = newZoom < xMinZoom || newZoom < yMinZoom
+                ? Math.max(xMinZoom, yMinZoom)
+                : newZoom;
             // 旧的内容中心点到鼠标聚焦点的距离
             var oldDistance = {
-                x: this.contentCenter.x - focusPoint.x,
-                y: this.contentCenter.y - focusPoint.y,
+                x: contentCenter.x - focusPoint.x,
+                y: contentCenter.y - focusPoint.y,
             };
             // 新的内容中心点到鼠标聚焦点的距离
             var newDistance = {
                 x: oldDistance.x / preZoom * this.zoom,
                 y: oldDistance.y / preZoom * this.zoom,
             };
-            this.contentCenter = {
-                x: this.contentCenter.x + (newDistance.x - oldDistance.x),
-                y: this.contentCenter.y + (newDistance.y - oldDistance.y),
-            };
+            this._contentCenter = this.limitBound({
+                x: contentCenter.x + (newDistance.x - oldDistance.x),
+                y: contentCenter.y + (newDistance.y - oldDistance.y),
+            });
             this.render();
+            // 如果是粘连效果，100毫秒后执行
+            if (this.sticky) {
+                if (this.zoomStickyTimer)
+                    clearTimeout(this.zoomStickyTimer);
+                this.zoomStickyTimer = setTimeout(function () {
+                    var contentCenter = _this.getOptions().contentCenter;
+                    var point = _this.viewCroods2UnitPoint(contentCenter.x, contentCenter.y);
+                    _this.focus(point, { duration: Math.min(unitSize * 5, 300) });
+                    _this.zoomStickyTimer = undefined;
+                    clearTimeout(_this.zoomStickyTimer);
+                }, 300);
+            }
         };
         /**
-         * 初始移动监听
+         * 移动监听
          */
-        Canvas.prototype.initMoveListener = function () {
+        UnboundedCanvas.prototype.initMoveListener = function () {
             var _this = this;
             var handleStart = function (event) {
-                _this.moveInitPoint = {
-                    x: event.offsetX,
-                    y: event.offsetY,
+                if (!_this._element)
+                    return;
+                var contentCenter = _this.getOptions().contentCenter;
+                _this.moveInitDistance = {
+                    x: event.offsetX - contentCenter.x,
+                    y: event.offsetY - contentCenter.y,
                 };
-                _this.element.style.cursor = 'grabbing';
+                _this._element.style.cursor = 'grabbing';
             };
             var handleMoving = function (event) {
-                if (_this.moveInitPoint === undefined)
+                if (_this.moveInitDistance === undefined)
                     return;
-                var contentCenter = {
-                    x: _this.contentCenter.x + event.offsetX - _this.moveInitPoint.x,
-                    y: _this.contentCenter.y + event.offsetY - _this.moveInitPoint.y,
-                };
-                _this.render(contentCenter);
+                _this._contentCenter = _this.limitBound({
+                    x: event.offsetX - _this.moveInitDistance.x,
+                    y: event.offsetY - _this.moveInitDistance.y,
+                });
+                _this.render();
             };
             var handleEnd = function (event) {
-                if (_this.moveInitPoint === undefined)
+                if (!_this._element)
                     return;
-                _this.contentCenter = {
-                    x: _this.contentCenter.x + event.offsetX - _this.moveInitPoint.x,
-                    y: _this.contentCenter.y + event.offsetY - _this.moveInitPoint.y,
-                };
-                _this.render();
-                _this.moveInitPoint = undefined;
-                _this.element.style.cursor = 'grab';
-            };
-            this.element.addEventListener('mousedown', handleStart);
-            this.element.addEventListener('mousemove', handleMoving);
-            this.element.addEventListener('mouseup', handleEnd);
-            this.element.addEventListener('mouseleave', handleEnd);
-        };
-        /**
-         * 初始缩放监听
-         */
-        Canvas.prototype.initZoomListener = function () {
-            var _this = this;
-            this.element.addEventListener('wheel', function (event) {
-                if (_this.moveInitPoint)
+                if (_this.moveInitDistance === undefined)
                     return;
-                var offsetX = event.offsetX, offsetY = event.offsetY, deltaY = event.deltaY;
-                var dZoom = Math.pow(0.999, (deltaY / 2));
-                var newZoom = Math.min(Math.max(_this.zoom * dZoom, GRID_MIN_SIZE / GRID_SIZE), GRID_MAX_SIZE / GRID_SIZE);
-                _this.handleZoom(newZoom, {
-                    x: offsetX,
-                    y: offsetY,
+                var unitSize = _this.getOptions().unitSize;
+                var newContentCenter = _this.limitBound({
+                    x: event.offsetX - _this.moveInitDistance.x,
+                    y: event.offsetY - _this.moveInitDistance.y,
                 });
-            });
-        };
-        /**
-         * 初始点击监听
-         */
-        Canvas.prototype.initClickListener = function () {
-            var _this = this;
-            this.element.addEventListener('click', function (event) {
-                var offsetX = event.offsetX, offsetY = event.offsetY;
-                console.log(_this.getCroodsFromView(offsetX, offsetY));
-                // this.fillPoints.push({
-                //   point: this.getCroodsFromView(offsetX, offsetY),
-                //   fill: 'pink',
-                // });
-                // this.render();
-            });
-        };
-        /**
-         * 初始悬空监听
-         */
-        Canvas.prototype.initHoverListener = function () {
-            // this.element.addEventListener('mousemove', (event) => {
-            //   if (this.moveInitPoint) return;
-            //   const { offsetX, offsetY } = event;
-            //   this.render().then(() => {
-            //     this.drawPoint(
-            //       this.getCroodsFromView(offsetX, offsetY),
-            //       '#999'
-            //     );
-            //   });
-            // });
-        };
-        /**
-         * 监听界面尺寸变化
-         */
-        Canvas.prototype.initResizeListener = function () {
-            var _this = this;
-            var refresh = throttle(function () {
-                _this.canvasCenter = _this.initCanvas({
-                    width: _this.element.clientWidth,
-                    height: _this.element.clientHeight,
-                });
-                _this.render();
-            }, 50);
-            window.addEventListener('resize', refresh);
-        };
-        /**
-         * 回到中心
-         */
-        Canvas.prototype.focus = function (point, duration) {
-            var _this = this;
-            var pointCroods = this.getCroodsFromContent.apply(this, point);
-            var oldContentCroods = __assign({}, this.contentCenter);
-            var distanceContentCenter = {
-                x: pointCroods.x - oldContentCroods.x,
-                y: pointCroods.y - oldContentCroods.y,
-            };
-            var distanceCanvasCenter = {
-                x: oldContentCroods.x - this.canvasCenter.x + distanceContentCenter.x,
-                y: oldContentCroods.y - this.canvasCenter.y + distanceContentCenter.y
-            };
-            var time = duration !== null && duration !== void 0 ? duration : Math.max(Math.abs(distanceCanvasCenter.x), Math.abs(distanceCanvasCenter.y)) / 150 * 1000;
-            time = Math.min(Math.max(time, 300), 2000);
-            // 在指定时间内通过特定过渡方式变成指定值
-            t(time, {
-                mode: 'ease-in-out',
-                onUpdate: function (percent) {
-                    _this.contentCenter = {
-                        x: oldContentCroods.x - distanceCanvasCenter.x * percent,
-                        y: oldContentCroods.y - distanceCanvasCenter.y * percent,
-                    };
+                _this._contentCenter = newContentCenter;
+                // 如果粘连，格子会保持原有的格子区域
+                if (_this.sticky) {
+                    if (_this.zoomStickyTimer)
+                        clearTimeout(_this.zoomStickyTimer);
+                    var point = _this.viewCroods2UnitPoint(newContentCenter.x, newContentCenter.y);
+                    _this.focus(point, { duration: Math.min(unitSize * 5, 300) });
+                }
+                else
                     _this.render();
+                _this.moveInitDistance = undefined;
+                _this._element.style.cursor = 'grab';
+            };
+            this.controlNaturalListener('on', {
+                eventName: 'mousedown',
+                handler: handleStart,
+            });
+            this.controlNaturalListener('on', {
+                eventName: 'mousemove',
+                handler: handleMoving,
+            });
+            this.controlNaturalListener('on', {
+                eventName: 'mouseup',
+                handler: handleEnd,
+            });
+            this.controlNaturalListener('on', {
+                eventName: 'mouseleave',
+                handler: handleEnd,
+            });
+        };
+        /**
+         * 缩放监听
+         */
+        UnboundedCanvas.prototype.initZoomListener = function () {
+            var _this = this;
+            this.controlNaturalListener('on', {
+                eventName: 'wheel',
+                handler: function (event) {
+                    if (_this.moveInitDistance || _this.isFocuing)
+                        return;
+                    var offsetX = event.offsetX, offsetY = event.offsetY, deltaY = event.deltaY;
+                    var dZoom = Math.pow(0.999, (deltaY / 2));
+                    var newZoom = Math.min(Math.max(_this.zoom * dZoom, _this.zoomLimit[0]), _this.zoomLimit[1]);
+                    _this.handleZoom(newZoom, {
+                        x: offsetX,
+                        y: offsetY,
+                    });
                 }
             });
         };
         /**
-         * 绘制图像
+         * 回到中心
          */
-        Canvas.prototype.drawImage = function (src) {
+        UnboundedCanvas.prototype.focus = function (point, options) {
+            if (options === void 0) { options = {}; }
             return __awaiter(this, void 0, void 0, function () {
-                var pixelData;
-                var _a;
+                var _a, speedMode, duration, _b, unitSize, unitGap, canvasCenter, contentCenter, pointCrood, oldContentCroods, distanceContentCenter, maxDistance, distanceGridLength, time;
                 var _this = this;
-                return __generator(this, function (_b) {
-                    switch (_b.label) {
-                        case 0: return [4 /*yield*/, pixelated(src, 16, 2)];
+                return __generator(this, function (_c) {
+                    switch (_c.label) {
+                        case 0:
+                            _a = options.speedMode, speedMode = _a === void 0 ? 'ease-in-out' : _a, duration = options.duration;
+                            _b = this.getOptions(), unitSize = _b.unitSize, unitGap = _b.unitGap, canvasCenter = _b.canvasCenter, contentCenter = _b.contentCenter;
+                            pointCrood = this.unitPoint2ViewCroods.apply(this, __spreadArray(__spreadArray([], point, false), [canvasCenter], false));
+                            oldContentCroods = __assign({}, contentCenter);
+                            distanceContentCenter = {
+                                x: pointCrood.x - oldContentCroods.x,
+                                y: pointCrood.y - oldContentCroods.y,
+                            };
+                            maxDistance = Math.max(Math.abs(distanceContentCenter.x), Math.abs(distanceContentCenter.y));
+                            distanceGridLength = Math.ceil(maxDistance * this.devicePixelRatio / (unitSize + unitGap));
+                            time = duration !== null && duration !== void 0 ? duration : Math.min(distanceGridLength * 50, 2000);
+                            this.isFocuing = true;
+                            // 在指定时间内通过特定过渡方式变成指定值
+                            return [4 /*yield*/, t(time, {
+                                    mode: speedMode,
+                                    onUpdate: function (percent) {
+                                        _this._contentCenter = {
+                                            x: oldContentCroods.x + distanceContentCenter.x * percent,
+                                            y: oldContentCroods.y + distanceContentCenter.y * percent,
+                                        };
+                                        _this.render();
+                                    }
+                                })];
                         case 1:
-                            pixelData = _b.sent();
-                            if (!pixelData)
-                                return [2 /*return*/];
-                            (_a = this.fillPoints).push.apply(_a, pixelData.map(function (_a) {
-                                var x = _a.x, y = _a.y, fill = _a.fill;
-                                return {
-                                    point: _this.getCroodsFromView(x, y),
-                                    fill: fill,
-                                };
-                            }));
-                            this.render();
+                            // 在指定时间内通过特定过渡方式变成指定值
+                            _c.sent();
+                            this.isFocuing = false;
                             return [2 /*return*/];
                     }
                 });
             });
         };
-        return Canvas;
+        /**
+         * 控制原生监听器
+         */
+        UnboundedCanvas.prototype.controlNaturalListener = function (type, options) {
+            if (!this._element)
+                return;
+            var eventName = options.eventName, handler = options.handler, _options = options.options;
+            var listenerIndex = this._listeners.findIndex(function (listener) {
+                return listener.eventName === eventName
+                    && listener.handler === handler
+                    && (listener.options === _options || (listener.options === undefined && _options === undefined));
+            });
+            if (type === 'on') {
+                if (listenerIndex !== -1)
+                    return;
+                this._listeners.push({
+                    eventName: eventName,
+                    handler: handler,
+                    options: _options,
+                });
+                this._element.addEventListener(eventName, handler, _options);
+            }
+            else {
+                if (listenerIndex === -1)
+                    return;
+                this._element.removeEventListener(eventName, handler, _options);
+                this._listeners.splice(listenerIndex, 1);
+            }
+        };
+        /**
+         * 监听事件
+         */
+        UnboundedCanvas.prototype.on = function (eventName, handler, options) {
+            if (eventName === 'render') {
+                this._renderListeners.push({ handler: handler, options: options });
+                this._renderListeners.sort(function (a, b) {
+                    var _a, _b, _c, _d;
+                    return ((_b = (_a = a.options) === null || _a === void 0 ? void 0 : _a.zIndex) !== null && _b !== void 0 ? _b : 1) - ((_d = (_c = b.options) === null || _c === void 0 ? void 0 : _c.zIndex) !== null && _d !== void 0 ? _d : 1);
+                });
+                this.render();
+                return;
+            }
+            this.controlNaturalListener('on', { eventName: eventName, handler: handler, options: options });
+        };
+        /**
+         * 移除监听事件
+         */
+        UnboundedCanvas.prototype.off = function (eventName, handler, options) {
+            if (eventName === 'render') {
+                var index = this._renderListeners.findIndex(function (listeners) {
+                    return listeners.handler === handler;
+                });
+                if (index === -1)
+                    return;
+                this._renderListeners.splice(index, 1);
+                this.render();
+                return;
+            }
+            this.controlNaturalListener('off', {
+                eventName: eventName,
+                handler: handler,
+                options: options,
+            });
+        };
+        /**
+         * 画布销毁
+         */
+        UnboundedCanvas.prototype.dispose = function () {
+            var disposeCanvas = function (canvas, size) {
+                var _a;
+                if (size === void 0) { size = {
+                    width: 1,
+                    height: 1,
+                }; }
+                canvas.width = size.width;
+                canvas.height = size.height;
+                (_a = canvas.getContext('2d')) === null || _a === void 0 ? void 0 : _a.clearRect(0, 0, canvas.width, canvas.height);
+                canvas.removeAttribute('style');
+            };
+            // 清空画布
+            if (this._cacheElement)
+                disposeCanvas(this._cacheElement);
+            if (this._element && this._stores)
+                disposeCanvas(this._element, this._stores);
+            // 清除监听事件
+            var listeners = __spreadArray([], this._listeners, true);
+            while (listeners.length) {
+                var listener = listeners.pop();
+                if (listener)
+                    this.controlNaturalListener('off', listener);
+            }
+            // 初始数据
+            this._renderListeners = [];
+            this.moveInitDistance = undefined;
+            this.isRendering = false;
+            this.sticky = false;
+            this.unitGap = 0;
+            this.unitSize = 1;
+            this.zoom = 1;
+            this.zoomLimit = DEFAULT_ZOOM_LIMIT;
+            // 置空数据
+            this._cacheContext = null;
+            this._cacheElement = null;
+            this._canvasCenter = null;
+            this._contentCenter = null;
+            this._stores = null;
+            this._ctx = null;
+            this._element = null;
+        };
+        return UnboundedCanvas;
     }());
-    var index = {
-        Canvas: Canvas,
-    };
 
-    return index;
+    return UnboundedCanvas;
 
 }));

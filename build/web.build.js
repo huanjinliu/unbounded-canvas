@@ -11,6 +11,7 @@ const config = {
     {
       file: 'public/index.js',
       format: 'iife',
+      sourcemap: true,
     }
   ],
   plugins: [
