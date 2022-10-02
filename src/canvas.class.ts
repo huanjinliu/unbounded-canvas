@@ -523,6 +523,8 @@ class UnboundedCanvas {
     };
     const handleStart = (event: MouseEvent) => {
       if (!movable || !this._element) return;
+      // 不是鼠标左键点击不可拖拽
+      if (event.which !== 1) return;
       const { contentCenter } = this.getOptions();
       this.moveInitDistance = {
         x: event.offsetX - contentCenter.x,
@@ -561,11 +563,6 @@ class UnboundedCanvas {
       this.moveInitDistance = undefined;
       changeCursor('default');
     };
-    this.controlNaturalListener('on', {
-      eventName: 'contextmenu',
-      handler: (event) => event.preventDefault(),
-      window: true,
-    });
     this.controlNaturalListener('on', {
       eventName: 'keydown',
       handler: handleReady,

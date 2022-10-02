@@ -611,6 +611,9 @@
             var handleStart = function (event) {
                 if (!movable || !_this._element)
                     return;
+                // 不是鼠标左键点击不可拖拽
+                if (event.which !== 1)
+                    return;
                 var contentCenter = _this.getOptions().contentCenter;
                 _this.moveInitDistance = {
                     x: event.offsetX - contentCenter.x,
@@ -646,11 +649,6 @@
                 _this.moveInitDistance = undefined;
                 changeCursor('default');
             };
-            this.controlNaturalListener('on', {
-                eventName: 'contextmenu',
-                handler: function (event) { return event.preventDefault(); },
-                window: true,
-            });
             this.controlNaturalListener('on', {
                 eventName: 'keydown',
                 handler: handleReady,
