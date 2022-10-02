@@ -6,9 +6,11 @@ declare type NeedProcessTypeStyles = {
     fontFamily: string;
     lineDash: number[];
     angle: number;
+    originX: 'left' | 'center' | 'right';
+    originY: 'top' | 'center' | 'bottom';
 };
 /** 原生样式配置对象 */
-declare type NaturalTypeStyles = Pick<CanvasRenderingContext2D, 'fillStyle' | 'filter' | 'globalAlpha' | 'globalCompositeOperation' | 'imageSmoothingEnabled' | 'imageSmoothingQuality' | 'lineCap' | 'lineDashOffset' | 'lineJoin' | 'lineWidth' | 'miterLimit' | 'shadowBlur' | 'shadowColor' | 'shadowOffsetX' | 'shadowOffsetY' | 'strokeStyle' | 'textAlign' | 'textBaseline'>;
+declare type NaturalTypeStyles = Pick<CanvasRenderingContext2D, 'fillStyle' | 'filter' | 'globalAlpha' | 'globalCompositeOperation' | 'imageSmoothingEnabled' | 'imageSmoothingQuality' | 'lineCap' | 'lineDashOffset' | 'lineJoin' | 'lineWidth' | 'miterLimit' | 'shadowBlur' | 'shadowColor' | 'shadowOffsetX' | 'shadowOffsetY' | 'strokeStyle' | 'textAlign'>;
 /** 样式配置对象 */
 declare type TypeStyles = NaturalTypeStyles & NeedProcessTypeStyles;
 /** 配置绘制样式 */

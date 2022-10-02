@@ -360,7 +360,7 @@
             // 初始画布css样式
             this._element.style.width = "".concat(width, "px");
             this._element.style.height = "".concat(height, "px");
-            this._element.style.cursor = 'grab';
+            this._element.style.cursor = 'default';
         };
         /**
          * 获取画布参数
@@ -474,27 +474,33 @@
         /**
          * 渲染画布
          */
-        UnboundedCanvas.prototype.render = function () {
+        UnboundedCanvas.prototype.render = function (withAnimation) {
             var _this = this;
-            var renderPromise = function () {
-                return new Promise(function (reslove) {
-                    window.requestAnimationFrame(function () {
-                        var ctx = _this.getContext();
-                        if (!ctx)
-                            return;
-                        var _a = _this.getOptions(), width = _a.width, height = _a.height;
-                        ctx.clearRect(0, 0, width, height);
-                        _this._renderListeners.map(function (_a) {
-                            var handler = _a.handler, options = _a.options;
-                            return handler(options);
-                        });
-                        if (_this._ctx && _this._cacheElement) {
-                            _this._ctx.clearRect(0, 0, width, height);
-                            _this._ctx.drawImage(_this._cacheElement, 0, 0);
-                        }
-                        reslove();
-                    });
+            if (withAnimation === void 0) { withAnimation = true; }
+            var _render = function () {
+                var ctx = _this.getContext();
+                if (!ctx)
+                    return;
+                var _a = _this.getOptions(), width = _a.width, height = _a.height;
+                ctx.clearRect(0, 0, width, height);
+                _this._renderListeners.map(function (_a) {
+                    var handler = _a.handler, options = _a.options;
+                    return handler(options);
                 });
+                if (_this._ctx && _this._cacheElement) {
+                    _this._ctx.clearRect(0, 0, width, height);
+                    _this._ctx.drawImage(_this._cacheElement, 0, 0);
+                }
+            };
+            var renderPromise = function () {
+                return withAnimation
+                    ? new Promise(function (reslove) {
+                        window.requestAnimationFrame(function () {
+                            _render();
+                            reslove();
+                        });
+                    })
+                    : Promise.resolve(_render());
             };
             // 绘制下一个
             var drawNext = function () {
@@ -591,15 +597,27 @@
          */
         UnboundedCanvas.prototype.initMoveListener = function () {
             var _this = this;
+            /** 是否可拖拽移动 */
+            var movable = false;
+            var changeCursor = function (type) {
+                if (_this._element)
+                    _this._element.style.cursor = type;
+            };
+            var handleReady = function (event) {
+                if (movable || !_this._element)
+                    return;
+                movable = event.code === 'Space';
+                changeCursor('grab');
+            };
             var handleStart = function (event) {
-                if (!_this._element)
+                if (!movable || !_this._element)
                     return;
                 var contentCenter = _this.getOptions().contentCenter;
                 _this.moveInitDistance = {
                     x: event.offsetX - contentCenter.x,
                     y: event.offsetY - contentCenter.y,
                 };
-                _this._element.style.cursor = 'grabbing';
+                changeCursor('grabbing');
             };
             var handleMoving = function (event) {
                 if (_this.moveInitDistance === undefined)
@@ -610,29 +628,40 @@
                 });
                 _this.render();
             };
-            var handleEnd = function (event) {
+            var handleEnd = function () {
                 if (!_this._element)
                     return;
-                if (_this.moveInitDistance === undefined)
-                    return;
-                var unitSize = _this.getOptions().unitSize;
-                var newContentCenter = _this.limitBound({
-                    x: event.offsetX - _this.moveInitDistance.x,
-                    y: event.offsetY - _this.moveInitDistance.y,
-                });
-                _this._contentCenter = newContentCenter;
-                // 如果粘连，格子会保持原有的格子区域
-                if (_this.sticky) {
-                    if (_this.zoomStickyTimer)
-                        clearTimeout(_this.zoomStickyTimer);
-                    var point = _this.viewCroods2UnitPoint(newContentCenter.x, newContentCenter.y);
-                    _this.focus(point, { duration: Math.min(unitSize * 5, 300) });
+                var _a = _this.getOptions(), unitSize = _a.unitSize, contentCenter = _a.contentCenter;
+                if (_this.moveInitDistance) {
+                    // 如果粘连，格子会保持原有的格子区域
+                    if (_this.sticky) {
+                        if (_this.zoomStickyTimer)
+                            clearTimeout(_this.zoomStickyTimer);
+                        var point = _this.viewCroods2UnitPoint(contentCenter.x, contentCenter.y);
+                        _this.focus(point, { duration: Math.min(unitSize * 5, 300) });
+                    }
+                    else
+                        _this.render();
                 }
-                else
-                    _this.render();
+                movable = false;
                 _this.moveInitDistance = undefined;
-                _this._element.style.cursor = 'grab';
+                changeCursor('default');
             };
+            this.controlNaturalListener('on', {
+                eventName: 'contextmenu',
+                handler: function (event) { return event.preventDefault(); },
+                window: true,
+            });
+            this.controlNaturalListener('on', {
+                eventName: 'keydown',
+                handler: handleReady,
+                window: true,
+            });
+            this.controlNaturalListener('on', {
+                eventName: 'keyup',
+                handler: handleEnd,
+                window: true,
+            });
             this.controlNaturalListener('on', {
                 eventName: 'mousedown',
                 handler: handleStart,
@@ -701,7 +730,7 @@
                                             x: oldContentCroods.x + distanceContentCenter.x * percent,
                                             y: oldContentCroods.y + distanceContentCenter.y * percent,
                                         };
-                                        _this.render();
+                                        _this.render(/* withAnimation */ false);
                                     }
                                 })];
                         case 1:
@@ -717,9 +746,10 @@
          * 控制原生监听器
          */
         UnboundedCanvas.prototype.controlNaturalListener = function (type, options) {
-            if (!this._element)
+            var eventName = options.eventName, handler = options.handler, _options = options.options, _a = options.window, isWindow = _a === void 0 ? false : _a;
+            var listenerTarget = isWindow ? window : this._element;
+            if (!listenerTarget)
                 return;
-            var eventName = options.eventName, handler = options.handler, _options = options.options;
             var listenerIndex = this._listeners.findIndex(function (listener) {
                 return listener.eventName === eventName
                     && listener.handler === handler
@@ -733,12 +763,12 @@
                     handler: handler,
                     options: _options,
                 });
-                this._element.addEventListener(eventName, handler, _options);
+                listenerTarget.addEventListener(eventName, handler, _options);
             }
             else {
                 if (listenerIndex === -1)
                     return;
-                this._element.removeEventListener(eventName, handler, _options);
+                listenerTarget.removeEventListener(eventName, handler, _options);
                 this._listeners.splice(listenerIndex, 1);
             }
         };

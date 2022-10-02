@@ -55,9 +55,10 @@ type RenderListener = (options: RenderListenerOptions) => void;
 
 /** 事件相关 */
 type NaturalListener<K extends keyof HTMLElementEventMap> = {
-  eventName: K,
-  handler: (ev: HTMLElementEventMap[K]) => any,
-  options?: boolean | AddEventListenerOptions,
+  eventName: K;
+  handler: (ev: HTMLElementEventMap[K]) => any;
+  options?: boolean | AddEventListenerOptions;
+  window?: boolean; 
 };
 
 /** 默认空坐标 */
@@ -258,7 +259,7 @@ class UnboundedCanvas {
     // 初始画布css样式
     this._element.style.width = `${width}px`;
     this._element.style.height = `${height}px`;
-    this._element.style.cursor = 'grab';
+    this._element.style.cursor = 'default';
   }
 
   /**
@@ -391,25 +392,29 @@ class UnboundedCanvas {
   /**
    * 渲染画布
    */
-  private render() {
-    const renderPromise = () =>
-      new Promise<void>(reslove => {
-        window.requestAnimationFrame(() => {
-          const ctx = this.getContext();
-          if (!ctx) return;
-          const { width, height } = this.getOptions();
-          ctx.clearRect(0, 0, width, height);
-    
-          this._renderListeners.map(({ handler, options }) => handler(options))
-    
-          if (this._ctx && this._cacheElement) {
-            this._ctx.clearRect(0, 0, width, height);
-            this._ctx.drawImage(this._cacheElement, 0, 0)
-          };
+  private render(withAnimation = true) {
+    const _render = () => {
+      const ctx = this.getContext();
+      if (!ctx) return;
+      const { width, height } = this.getOptions();
+      ctx.clearRect(0, 0, width, height);
 
-          reslove();
+      this._renderListeners.map(({ handler, options }) => handler(options))
+
+      if (this._ctx && this._cacheElement) {
+        this._ctx.clearRect(0, 0, width, height);
+        this._ctx.drawImage(this._cacheElement, 0, 0)
+      };
+    };
+    const renderPromise = () =>
+      withAnimation
+        ? new Promise<void>(reslove => {
+          window.requestAnimationFrame(() => {
+            _render();
+            reslove();
+          })
         })
-      });
+        : Promise.resolve(_render());
     // 绘制下一个
     const drawNext = () => {
       if (this.nextRender) {
@@ -506,14 +511,25 @@ class UnboundedCanvas {
    * 移动监听
    */
   private initMoveListener() {
+    /** 是否可拖拽移动 */
+    let movable = false;
+    const changeCursor = (type: 'default' | 'grab' | 'grabbing') => {
+      if (this._element) this._element.style.cursor = type;
+    }
+    const handleReady = (event: KeyboardEvent) => {
+      if (movable || !this._element) return;
+      movable = event.code === 'Space';
+      changeCursor('grab');
+    };
     const handleStart = (event: MouseEvent) => {
-      if (!this._element) return;
+      if (!movable || !this._element) return;
       const { contentCenter } = this.getOptions();
       this.moveInitDistance = {
         x: event.offsetX - contentCenter.x,
         y: event.offsetY - contentCenter.y,
       };
-      this._element.style.cursor = 'grabbing';
+
+      changeCursor('grabbing');
     };
     const handleMoving = (event: MouseEvent) => {
       if (this.moveInitDistance === undefined) return;
@@ -525,32 +541,41 @@ class UnboundedCanvas {
 
       this.render();
     };
-    const handleEnd = (event: MouseEvent) => {
+    const handleEnd = () => {
       if (!this._element) return;
-      if (this.moveInitDistance === undefined) return;
+      const { unitSize, contentCenter } = this.getOptions();
 
-      const { unitSize } = this.getOptions();
+      if (this.moveInitDistance) {
+        // 如果粘连，格子会保持原有的格子区域
+        if (this.sticky) {
+          if (this.zoomStickyTimer) clearTimeout(this.zoomStickyTimer);
+          const point = this.viewCroods2UnitPoint(
+            contentCenter.x,
+            contentCenter.y,
+          );
+          this.focus(point, { duration: Math.min(unitSize * 5, 300) });
+        } else this.render();
+      }
 
-      const newContentCenter = this.limitBound({
-        x: event.offsetX - this.moveInitDistance.x,
-        y: event.offsetY - this.moveInitDistance.y,
-      });
-
-      this._contentCenter = newContentCenter;
-
-      // 如果粘连，格子会保持原有的格子区域
-      if (this.sticky) {
-        if (this.zoomStickyTimer) clearTimeout(this.zoomStickyTimer);
-        const point = this.viewCroods2UnitPoint(
-          newContentCenter.x,
-          newContentCenter.y,
-        );
-        this.focus(point, { duration: Math.min(unitSize * 5, 300) });
-      } else this.render();
-
+      movable = false;
       this.moveInitDistance = undefined;
-      this._element.style.cursor = 'grab';
+      changeCursor('default');
     };
+    this.controlNaturalListener('on', {
+      eventName: 'contextmenu',
+      handler: (event) => event.preventDefault(),
+      window: true,
+    });
+    this.controlNaturalListener('on', {
+      eventName: 'keydown',
+      handler: handleReady,
+      window: true,
+    });
+    this.controlNaturalListener('on', {
+      eventName: 'keyup',
+      handler: handleEnd,
+      window: true,
+    });
     this.controlNaturalListener('on', {
       eventName: 'mousedown',
       handler: handleStart,
@@ -620,7 +645,7 @@ class UnboundedCanvas {
           x: oldContentCroods.x + distanceContentCenter.x * percent,
           y: oldContentCroods.y + distanceContentCenter.y * percent,
         };
-        this.render();
+        this.render(/* withAnimation */false);
       }
     })
     this.isFocuing = false;
@@ -630,8 +655,10 @@ class UnboundedCanvas {
    * 控制原生监听器
    */
   private controlNaturalListener<K extends keyof HTMLElementEventMap>(type: 'on' | 'off', options: NaturalListener<K>) {
-    if (!this._element) return;
-    const { eventName, handler, options: _options } = options;
+    const { eventName, handler, options: _options, window: isWindow = false } = options;
+    const listenerTarget = isWindow ? window : this._element;
+    if (!listenerTarget) return;
+
     const listenerIndex = this._listeners.findIndex(listener => {
       return listener.eventName === eventName
         && listener.handler === handler
@@ -644,10 +671,10 @@ class UnboundedCanvas {
         handler,
         options: _options,
       })
-      this._element.addEventListener(eventName, handler, _options);
+      listenerTarget.addEventListener(eventName, handler as any, _options);
     } else {
       if (listenerIndex === -1) return;
-      this._element.removeEventListener(eventName, handler, _options);
+      listenerTarget.removeEventListener(eventName, handler as any, _options);
       this._listeners.splice(listenerIndex, 1);
     }
   }

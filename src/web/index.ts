@@ -33,6 +33,7 @@ const createCanvas = async () => {
     unit: {
       size: GRID_SIZE,
       gap: GRID_GAP,
+      sticky: true,
       zoomLimit: [
         GRID_MIN_SIZE / GRID_SIZE,
         GRID_MAX_SIZE / GRID_SIZE,
@@ -135,28 +136,28 @@ const createCanvas = async () => {
 
   }, { zIndex: 999999 })
 
-  loadImage('./assets/test.png').then(image => {
-    unbounedCanvas.on('render', () => {
-      const { width, height, zoom } = unbounedCanvas.getOptions();
+  // loadImage('./assets/test.png').then(image => {
+  //   unbounedCanvas.on('render', () => {
+  //     const { width, height, zoom } = unbounedCanvas.getOptions();
 
-      const imageWidth = image.width * zoom;
-      const imageHeight = image.height * zoom;
-      console.dir(imageWidth)
-      drawers
-        .style({
-          angle: 0,
-          originX: 'center',
-          originY: 'bottom',
-        })
-        .image(
-          image,
-          width / 2,
-          height / 2,
-          imageWidth,
-          imageHeight,
-        )
-    })
-  })
+  //     const imageWidth = image.width * zoom;
+  //     const imageHeight = image.height * zoom;
+  //     console.dir(imageWidth)
+  //     drawers
+  //       .style({
+  //         angle: 0,
+  //         originX: 'center',
+  //         originY: 'center',
+  //       })
+  //       .image(
+  //         image,
+  //         width / 2,
+  //         height / 2,
+  //         imageWidth,
+  //         imageHeight,
+  //       )
+  //   })
+  // })
 
   loadFont(FONT_CONFIGURATION, 1000)?.then(fontName => {
     unbounedCanvas.on('render', () => {
@@ -169,11 +170,8 @@ const createCanvas = async () => {
         .style({
           fontSize: 20,
           fontFamily: fontName,
-          // angle: 45,
-          originX: 'center',
-          originY: 'bottom',
         })
-        .text(`(x: ${point[0]}, y: ${point[1]})`, width / 2, height / 2);
+        .text(`(x: ${point[0]}, y: ${point[1]})`, 20, 20);
     })
   })
 
