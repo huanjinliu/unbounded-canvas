@@ -14,6 +14,14 @@ interface CanvasOptions {
    */
   bound?: [number, number];
   /**
+   * 是否可内容画布移动
+   */
+  movable?: boolean;
+  /**
+   * 是否可画布缩放
+   */
+  zoomable?: boolean;
+  /**
    * 像素单位设置
    */
   unit?: {
@@ -118,6 +126,16 @@ class UnboundedCanvas {
   private bound: [width: number, height: number] = [Infinity, Infinity];
 
   /**
+   * 是否可内容画布移动
+   */
+  private movable: boolean = true;
+
+  /**
+  * 是否可画布缩放
+  */
+  private zoomable: boolean = true;
+
+  /**
    * 缩放值
    */
   private zoom: number = 1;
@@ -183,6 +201,8 @@ class UnboundedCanvas {
       ignoreDevicePixelRatio = false,
       unit,
       bound,
+      movable = true,
+      zoomable = true,
     } = options;
 
     const {
@@ -197,6 +217,10 @@ class UnboundedCanvas {
     this.devicePixelRatio = ignoreDevicePixelRatio
       ? 1
       : window.devicePixelRatio;
+    // 是否可拖动
+    this.movable = movable;
+    // 是否可缩放
+    this.zoomable = zoomable;
     // 单位像素格至少需要1像素
     this.unitSize = Math.max(1, Math.ceil(unitSize));
     // 单位像素格间距不允许小于0
@@ -216,7 +240,7 @@ class UnboundedCanvas {
     this._stores = {
       width: this._element.width,
       height: this._element.height,
-    }
+    };
     // 初始画布参数
     this.initOptions(options);
 
@@ -296,8 +320,8 @@ class UnboundedCanvas {
    * 初始画布监听器
    */
   private initListeners() {
-    this.initMoveListener();
-    this.initZoomListener();
+    this.movable && this.initMoveListener();
+    this.zoomable && this.initZoomListener();
   }
 
   /**
@@ -621,6 +645,8 @@ class UnboundedCanvas {
     speedMode: 'linear' | 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out',
     duration: number, 
   }> = {}) {
+    if (!this.movable) return;
+
     const { speedMode = 'ease-in-out', duration } = options;
     const { unitSize, unitGap, canvasCenter, contentCenter } = this.getOptions();
     const pointCrood = this.unitPoint2ViewCroods(...point, canvasCenter);
@@ -758,6 +784,8 @@ class UnboundedCanvas {
     this.moveInitDistance = undefined;
     this.isRendering = false;
     this.sticky = false;
+    this.movable = true;
+    this.zoomable = true;
     this.unitGap = 0;
     this.unitSize = 1;
     this.zoom = 1;

@@ -6,6 +6,8 @@ declare type NeedProcessTypeStyles = {
     fontFamily: string;
     lineDash: number[];
     angle: number;
+    scaleX: number;
+    scaleY: number;
     originX: 'left' | 'center' | 'right';
     originY: 'top' | 'center' | 'bottom';
 };

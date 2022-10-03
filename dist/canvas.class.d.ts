@@ -12,6 +12,14 @@ interface CanvasOptions {
      */
     bound?: [number, number];
     /**
+     * 是否可内容画布移动
+     */
+    movable?: boolean;
+    /**
+     * 是否可画布缩放
+     */
+    zoomable?: boolean;
+    /**
      * 像素单位设置
      */
     unit?: {
@@ -88,6 +96,14 @@ declare class UnboundedCanvas {
      * 画布边界
      */
     private bound;
+    /**
+     * 是否可内容画布移动
+     */
+    private movable;
+    /**
+    * 是否可画布缩放
+    */
+    private zoomable;
     /**
      * 缩放值
      */

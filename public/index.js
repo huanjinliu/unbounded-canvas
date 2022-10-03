@@ -280,6 +280,14 @@
              */
             this.bound = [Infinity, Infinity];
             /**
+             * 是否可内容画布移动
+             */
+            this.movable = true;
+            /**
+            * 是否可画布缩放
+            */
+            this.zoomable = true;
+            /**
              * 缩放值
              */
             this.zoom = 1;
@@ -299,13 +307,17 @@
              * 记录监听器
              */
             this._listeners = [];
-            var _c = options.ignoreDevicePixelRatio, ignoreDevicePixelRatio = _c === void 0 ? false : _c, unit = options.unit, bound = options.bound;
-            var _d = unit || {}, _e = _d.zoomLimit, zoomLimit = _e === void 0 ? DEFAULT_ZOOM_LIMIT : _e, _f = _d.size, unitSize = _f === void 0 ? 1 : _f, _g = _d.gap, unitGap = _g === void 0 ? 0 : _g, _h = _d.sticky, sticky = _h === void 0 ? false : _h;
+            var _c = options.ignoreDevicePixelRatio, ignoreDevicePixelRatio = _c === void 0 ? false : _c, unit = options.unit, bound = options.bound, _d = options.movable, movable = _d === void 0 ? true : _d, _e = options.zoomable, zoomable = _e === void 0 ? true : _e;
+            var _f = unit || {}, _g = _f.zoomLimit, zoomLimit = _g === void 0 ? DEFAULT_ZOOM_LIMIT : _g, _h = _f.size, unitSize = _h === void 0 ? 1 : _h, _j = _f.gap, unitGap = _j === void 0 ? 0 : _j, _k = _f.sticky, sticky = _k === void 0 ? false : _k;
             this._element = element;
             this._ctx = element.getContext('2d');
             this.devicePixelRatio = ignoreDevicePixelRatio
                 ? 1
                 : window.devicePixelRatio;
+            // 是否可拖动
+            this.movable = movable;
+            // 是否可缩放
+            this.zoomable = zoomable;
             // 单位像素格至少需要1像素
             this.unitSize = Math.max(1, Math.ceil(unitSize));
             // 单位像素格间距不允许小于0
@@ -394,8 +406,8 @@
          * 初始画布监听器
          */
         UnboundedCanvas.prototype.initListeners = function () {
-            this.initMoveListener();
-            this.initZoomListener();
+            this.movable && this.initMoveListener();
+            this.zoomable && this.initZoomListener();
         };
         /**
          * 取得绘制上下文
@@ -707,6 +719,8 @@
                 return __generator(this, function (_c) {
                     switch (_c.label) {
                         case 0:
+                            if (!this.movable)
+                                return [2 /*return*/];
                             _a = options.speedMode, speedMode = _a === void 0 ? 'ease-in-out' : _a, duration = options.duration;
                             _b = this.getOptions(), unitSize = _b.unitSize, unitGap = _b.unitGap, canvasCenter = _b.canvasCenter, contentCenter = _b.contentCenter;
                             pointCrood = this.unitPoint2ViewCroods.apply(this, __spreadArray(__spreadArray([], point, false), [canvasCenter], false));
@@ -836,6 +850,8 @@
             this.moveInitDistance = undefined;
             this.isRendering = false;
             this.sticky = false;
+            this.movable = true;
+            this.zoomable = true;
             this.unitGap = 0;
             this.unitSize = 1;
             this.zoom = 1;
@@ -921,6 +937,78 @@
         };
     });
 
+    /** 单位矩阵 */
+    var UNIT_MATRIX = [1, 0, 0, 1, 0, 0];
+    /**
+     * 行为变换矩阵
+     */
+    var BEHAVE_MATRICES = (function () {
+        /**
+         * 转化为matrix所用的角度值
+         */
+        var transformMatrixAngle = function (angle) {
+            if (angle === void 0) { angle = 0; }
+            return (angle * Math.PI) / 180;
+        };
+        return {
+            'move': function (x, y) { return [1, 0, 0, 1, x, y]; },
+            'rotate': function (angle) {
+                var _angle = transformMatrixAngle(angle);
+                return [
+                    Math.cos(_angle),
+                    Math.sin(_angle),
+                    -Math.sin(_angle),
+                    Math.cos(_angle),
+                    0, 0,
+                ];
+            },
+            'scale': function (x, y) { return [x, 0, 0, y, 0, 0]; },
+            'flip': function (x, y) {
+                if (x === void 0) { x = false; }
+                if (y === void 0) { y = false; }
+                // [1 0] [-1 0]
+                // [0 1] [0 -1]
+                return [
+                    x ? -1 : 1,
+                    0,
+                    0,
+                    y ? -1 : 1,
+                    0,
+                    0,
+                ];
+            },
+            'skew': function (angleX, angleY) {
+                var _angleX = transformMatrixAngle(angleX);
+                var _angleY = transformMatrixAngle(angleY);
+                return [1, Math.tan(_angleY), Math.tan(_angleX), 1, 0, 0];
+            }
+        };
+    })();
+    /**
+     * 转换值矩阵相乘
+     */
+    var multiplyTransformMatrix = function (a, b) {
+        // [a:0 c:2 e:4]
+        // [b:1 d:3 f:5]
+        return [
+            a[0] * b[0] + a[2] * b[1],
+            a[1] * b[0] + a[3] * b[1],
+            a[0] * b[2] + a[2] * b[3],
+            a[1] * b[2] + a[3] * b[3],
+            a[0] * b[4] + a[2] * b[5] + a[4],
+            a[1] * b[4] + a[3] * b[5] + a[5],
+        ];
+    };
+    /**
+     * 多转换值相乘
+     * 其效果等同多种转换形式的叠加
+     */
+    var multiplyTransformMatrices = function (matrices) {
+        return matrices.reduce(function (result, item) {
+            return multiplyTransformMatrix(result, item);
+        }, UNIT_MATRIX);
+    };
+
     var getDrawers = function (ctx) {
         if (!ctx)
             throw ReferenceError('ctx is no define');
@@ -928,7 +1016,6 @@
          * 样式覆盖
          */
         var overwriteStyle = function (styleSetter) {
-            var _a, _b, _c;
             if (styleSetter === void 0) { styleSetter = {}; }
             // 设置公用默认参数
             ctx.textBaseline = 'hanging';
@@ -963,29 +1050,35 @@
                 }
             });
             // 加工函数，需要处理传入数据
-            var originX = (_a = styleSetter.originX) !== null && _a !== void 0 ? _a : 'left';
-            var originY = (_b = styleSetter.originY) !== null && _b !== void 0 ? _b : 'top';
-            var angle = (_c = styleSetter.angle) !== null && _c !== void 0 ? _c : 0;
-            var processor = function (_a) {
-                var top = _a.top, left = _a.left, width = _a.width, height = _a.height;
+            var _a = styleSetter.originX, originX = _a === void 0 ? 'left' : _a, _b = styleSetter.originY, originY = _b === void 0 ? 'top' : _b, _c = styleSetter.scaleX, scaleX = _c === void 0 ? 1 : _c, _d = styleSetter.scaleY, scaleY = _d === void 0 ? 1 : _d, _e = styleSetter.flipX, flipX = _e === void 0 ? false : _e, _f = styleSetter.flipY, flipY = _f === void 0 ? false : _f, _g = styleSetter.angle, angle = _g === void 0 ? 0 : _g, _h = styleSetter.skewX, skewX = _h === void 0 ? 0 : _h, _j = styleSetter.skewY, skewY = _j === void 0 ? 0 : _j;
+            var processor = function (positionAndSize) {
+                var top = positionAndSize.top, left = positionAndSize.left, width = positionAndSize.width, height = positionAndSize.height;
                 var offset = {
-                    x: originX === 'center'
-                        ? left - width / 2
-                        : originX === 'left'
-                            ? left
-                            : left - width,
-                    y: originY === 'center'
-                        ? top - height / 2
-                        : originY === 'top'
-                            ? top
-                            : top - height,
+                    x: {
+                        'left': 0,
+                        'center': width / 2,
+                        'right': width,
+                    }[originX],
+                    y: {
+                        'top': 0,
+                        'center': height / 2,
+                        'bottom': height,
+                    }[originY],
                 };
-                if (angle !== 0) {
-                    ctx.translate(left, top);
-                    ctx.rotate((angle * Math.PI) / 180);
-                    offset.x -= left;
-                    offset.y -= top;
-                }
+                var transformQueue = [
+                    // 位移
+                    BEHAVE_MATRICES.move(left, top),
+                    // 缩放
+                    BEHAVE_MATRICES.scale(scaleX, scaleY),
+                    // 旋转
+                    BEHAVE_MATRICES.rotate(angle),
+                    // 变形
+                    BEHAVE_MATRICES.skew(skewX, skewY),
+                    // 翻转
+                    BEHAVE_MATRICES.flip(flipX, flipY),
+                    BEHAVE_MATRICES.move(flipX ? -width : -offset.x * 2, flipY ? -height : -offset.y * 2),
+                ];
+                ctx.transform.apply(ctx, multiplyTransformMatrices(transformQueue));
                 return {
                     left: offset.x,
                     top: offset.y,
@@ -1752,6 +1845,15 @@
         });
     };
 
+    /** 加载图片 */
+    var loadImage = function (src) { return new Promise(function (resolve) {
+        var image = new Image();
+        image.src = src;
+        image.onload = function () {
+            resolve(image);
+        };
+    }); };
+
     /** 格子大小 */
     var GRID_SIZE = 15;
     /** 格子间隔 */
@@ -1782,7 +1884,7 @@
                 unit: {
                     size: GRID_SIZE,
                     gap: GRID_GAP,
-                    sticky: true,
+                    // sticky: true,
                     zoomLimit: [
                         GRID_MIN_SIZE / GRID_SIZE,
                         GRID_MAX_SIZE / GRID_SIZE,
@@ -1868,30 +1970,27 @@
                 drawDashLine([width / 2, 0], [width / 2, height]);
                 drawDashLine([0, height / 2], [width, height / 2]);
             }, { zIndex: 999999 });
-            // loadImage('./assets/test.png').then(image => {
-            //   unbounedCanvas.on('render', () => {
-            //     const { width, height, zoom } = unbounedCanvas.getOptions();
-            //     const imageWidth = image.width * zoom;
-            //     const imageHeight = image.height * zoom;
-            //     console.dir(imageWidth)
-            //     drawers
-            //       .style({
-            //         angle: 0,
-            //         originX: 'center',
-            //         originY: 'center',
-            //       })
-            //       .image(
-            //         image,
-            //         width / 2,
-            //         height / 2,
-            //         imageWidth,
-            //         imageHeight,
-            //       )
-            //   })
-            // })
+            loadImage('./assets/test.png').then(function (image) {
+                unbounedCanvas.on('render', function () {
+                    var _a = unbounedCanvas.getOptions(), width = _a.width, height = _a.height, zoom = _a.zoom;
+                    drawers
+                        .style({
+                        angle: 45,
+                        originX: 'center',
+                        originY: 'center',
+                        scaleX: zoom,
+                        scaleY: zoom,
+                        flipX: true,
+                        flipY: true,
+                        // skewX: 0,
+                        // skewY: 0,
+                    })
+                        .image(image, width / 2, height / 2);
+                });
+            });
             (_b = loadFont(FONT_CONFIGURATION, 1000)) === null || _b === void 0 ? void 0 : _b.then(function (fontName) {
                 unbounedCanvas.on('render', function () {
-                    var _a = unbounedCanvas.getOptions(), contentCenter = _a.contentCenter; _a.width; _a.height;
+                    var contentCenter = unbounedCanvas.getOptions().contentCenter;
                     var point = unbounedCanvas.viewCroods2UnitPoint(contentCenter.x, contentCenter.y);
                     drawers
                         .style({

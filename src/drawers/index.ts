@@ -2,6 +2,7 @@ import getLineDrawer from './line';
 import getRectDrawer from './rect';
 import getTextDrawer from './text';
 import getImageDrawer from './image';
+import { BEHAVE_MATRICES, multiplyTransformMatrices } from '../utils/matrix';
 
 /** 画布上下文 */
 type Context2D = CanvasRenderingContext2D;
@@ -12,8 +13,14 @@ type NeedProcessTypeStyles = {
   fontFamily: string;
   lineDash: number[];
   angle: number;
+  scaleX: number;
+  scaleY: number;
   originX: 'left' | 'center' | 'right';
   originY: 'top' | 'center' | 'bottom';
+  flipX: boolean;
+  flipY: boolean;
+  skewX: number;
+  skewY: number;
 }
 
 /** 原生样式配置对象 */
@@ -47,7 +54,7 @@ type StyleSetter =
   | ((ctx: Context2D) => void);
 
 /** 可加工属性 */
-type ProcessProperties = {
+export type PositionAndSize = {
   left: number;
   top: number;
   width: number;
@@ -55,7 +62,7 @@ type ProcessProperties = {
 };
 
 /** 属性加工函数 */
-export type PropertyProcessor = (properties: ProcessProperties) => ProcessProperties;
+export type PropertyProcessor = (properties: PositionAndSize) => PositionAndSize;
 
 const getDrawers = (ctx?: Context2D) => {
   if (!ctx) throw ReferenceError('ctx is no define');
@@ -99,28 +106,51 @@ const getDrawers = (ctx?: Context2D) => {
     })
 
     // 加工函数，需要处理传入数据
-    const originX = styleSetter.originX ?? 'left';
-    const originY = styleSetter.originY ?? 'top';
-    const angle = styleSetter.angle ?? 0;
-    const processor: PropertyProcessor = ({ top, left, width, height }: ProcessProperties) => {
+    const {
+      originX = 'left',
+      originY = 'top',
+      scaleX = 1,
+      scaleY = 1,
+      flipX = false,
+      flipY = false,
+      angle = 0,
+      skewX = 0,
+      skewY = 0,
+    } = styleSetter;
+    const processor: PropertyProcessor = (positionAndSize: PositionAndSize) => {
+      const { top, left, width, height } = positionAndSize;
       const offset = {
-        x: originX === 'center'
-          ? left - width / 2
-          : originX === 'left'
-            ? left
-            : left - width,
-        y: originY === 'center'
-          ? top - height / 2
-          : originY === 'top'
-            ? top
-            : top - height,
+        x: {
+          'left': 0,
+          'center': width / 2,
+          'right': width,
+        }[originX],
+        y: {
+          'top': 0,
+          'center': height / 2,
+          'bottom': height,
+        }[originY],
       }
-      if (angle !== 0) {
-        ctx.translate(left, top);
-        ctx.rotate(((angle as number) * Math.PI) / 180);
-        offset.x -= left;
-        offset.y -= top;
-      }
+
+      const transformQueue = [
+        // 位移
+        BEHAVE_MATRICES.move(left, top),
+        // 缩放
+        BEHAVE_MATRICES.scale(scaleX, scaleY),
+        // 旋转
+        BEHAVE_MATRICES.rotate(angle),
+        // 变形
+        BEHAVE_MATRICES.skew(skewX, skewY),
+        // 翻转
+        BEHAVE_MATRICES.flip(flipX, flipY),
+        BEHAVE_MATRICES.move(
+          flipX ? -width : -offset.x * 2, 
+          flipY ? -height : -offset.y * 2,
+        ),
+      ];
+
+      ctx.transform(...multiplyTransformMatrices(transformQueue));
+
       return {
         left: offset.x,
         top: offset.y,
@@ -142,7 +172,7 @@ const getDrawers = (ctx?: Context2D) => {
   ) => {
     return async (...args: Parameters<Drawer>) => {
       ctx.save();
-      const processor = overwriteStyle(styleSetter) ?? ((properties: ProcessProperties) => properties);
+      const processor = overwriteStyle(styleSetter) ?? ((properties: PositionAndSize) => properties);
       drawerGetter(ctx, processor)(...args);
       ctx.restore();
       return ctx;

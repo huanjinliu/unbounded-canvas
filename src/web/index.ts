@@ -33,7 +33,7 @@ const createCanvas = async () => {
     unit: {
       size: GRID_SIZE,
       gap: GRID_GAP,
-      sticky: true,
+      // sticky: true,
       zoomLimit: [
         GRID_MIN_SIZE / GRID_SIZE,
         GRID_MAX_SIZE / GRID_SIZE,
@@ -136,32 +136,33 @@ const createCanvas = async () => {
 
   }, { zIndex: 999999 })
 
-  // loadImage('./assets/test.png').then(image => {
-  //   unbounedCanvas.on('render', () => {
-  //     const { width, height, zoom } = unbounedCanvas.getOptions();
-
-  //     const imageWidth = image.width * zoom;
-  //     const imageHeight = image.height * zoom;
-  //     console.dir(imageWidth)
-  //     drawers
-  //       .style({
-  //         angle: 0,
-  //         originX: 'center',
-  //         originY: 'center',
-  //       })
-  //       .image(
-  //         image,
-  //         width / 2,
-  //         height / 2,
-  //         imageWidth,
-  //         imageHeight,
-  //       )
-  //   })
-  // })
+  loadImage('./assets/test.png').then(image => {
+    unbounedCanvas.on('render', () => {
+      const { width, height, zoom } = unbounedCanvas.getOptions();
+      
+      drawers
+        .style({
+          angle: 45,
+          originX: 'center',
+          originY: 'center',
+          scaleX: zoom,
+          scaleY: zoom,
+          flipX: true,
+          flipY: true,
+          // skewX: 0,
+          // skewY: 0,
+        })
+        .image(
+          image,
+          width / 2,
+          height / 2,
+        )
+    })
+  })
 
   loadFont(FONT_CONFIGURATION, 1000)?.then(fontName => {
     unbounedCanvas.on('render', () => {
-      const { contentCenter, width, height } = unbounedCanvas.getOptions();
+      const { contentCenter } = unbounedCanvas.getOptions();
       const point = unbounedCanvas.viewCroods2UnitPoint(
         contentCenter.x,
         contentCenter.y,

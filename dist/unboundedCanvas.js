@@ -281,6 +281,14 @@
              */
             this.bound = [Infinity, Infinity];
             /**
+             * 是否可内容画布移动
+             */
+            this.movable = true;
+            /**
+            * 是否可画布缩放
+            */
+            this.zoomable = true;
+            /**
              * 缩放值
              */
             this.zoom = 1;
@@ -300,13 +308,17 @@
              * 记录监听器
              */
             this._listeners = [];
-            var _c = options.ignoreDevicePixelRatio, ignoreDevicePixelRatio = _c === void 0 ? false : _c, unit = options.unit, bound = options.bound;
-            var _d = unit || {}, _e = _d.zoomLimit, zoomLimit = _e === void 0 ? DEFAULT_ZOOM_LIMIT : _e, _f = _d.size, unitSize = _f === void 0 ? 1 : _f, _g = _d.gap, unitGap = _g === void 0 ? 0 : _g, _h = _d.sticky, sticky = _h === void 0 ? false : _h;
+            var _c = options.ignoreDevicePixelRatio, ignoreDevicePixelRatio = _c === void 0 ? false : _c, unit = options.unit, bound = options.bound, _d = options.movable, movable = _d === void 0 ? true : _d, _e = options.zoomable, zoomable = _e === void 0 ? true : _e;
+            var _f = unit || {}, _g = _f.zoomLimit, zoomLimit = _g === void 0 ? DEFAULT_ZOOM_LIMIT : _g, _h = _f.size, unitSize = _h === void 0 ? 1 : _h, _j = _f.gap, unitGap = _j === void 0 ? 0 : _j, _k = _f.sticky, sticky = _k === void 0 ? false : _k;
             this._element = element;
             this._ctx = element.getContext('2d');
             this.devicePixelRatio = ignoreDevicePixelRatio
                 ? 1
                 : window.devicePixelRatio;
+            // 是否可拖动
+            this.movable = movable;
+            // 是否可缩放
+            this.zoomable = zoomable;
             // 单位像素格至少需要1像素
             this.unitSize = Math.max(1, Math.ceil(unitSize));
             // 单位像素格间距不允许小于0
@@ -395,8 +407,8 @@
          * 初始画布监听器
          */
         UnboundedCanvas.prototype.initListeners = function () {
-            this.initMoveListener();
-            this.initZoomListener();
+            this.movable && this.initMoveListener();
+            this.zoomable && this.initZoomListener();
         };
         /**
          * 取得绘制上下文
@@ -708,6 +720,8 @@
                 return __generator(this, function (_c) {
                     switch (_c.label) {
                         case 0:
+                            if (!this.movable)
+                                return [2 /*return*/];
                             _a = options.speedMode, speedMode = _a === void 0 ? 'ease-in-out' : _a, duration = options.duration;
                             _b = this.getOptions(), unitSize = _b.unitSize, unitGap = _b.unitGap, canvasCenter = _b.canvasCenter, contentCenter = _b.contentCenter;
                             pointCrood = this.unitPoint2ViewCroods.apply(this, __spreadArray(__spreadArray([], point, false), [canvasCenter], false));
@@ -837,6 +851,8 @@
             this.moveInitDistance = undefined;
             this.isRendering = false;
             this.sticky = false;
+            this.movable = true;
+            this.zoomable = true;
             this.unitGap = 0;
             this.unitSize = 1;
             this.zoom = 1;
