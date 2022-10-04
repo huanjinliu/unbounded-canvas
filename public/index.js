@@ -1105,9 +1105,10 @@
              * @param styleSetter 配置绘制样式
              */
             var protect = function (drawerGetter, styleSetter) {
-                var transform = styleSetter && Object.keys(styleSetter)
+                if (styleSetter === void 0) { styleSetter = {}; }
+                var transform = Object.keys(styleSetter)
                     .reduce(function (result, key) {
-                    if (!TRANSFORM_DEFAULT_SETTING[key])
+                    if (TRANSFORM_DEFAULT_SETTING[key] === undefined)
                         return result;
                     if (styleSetter[key] === TRANSFORM_DEFAULT_SETTING[key])
                         return result;
@@ -1115,7 +1116,7 @@
                     return result;
                 }, {});
                 var withTransform = function (positionAndSize) {
-                    if (transform === undefined)
+                    if (Object.keys(transform).length === 0)
                         return positionAndSize;
                     var top = positionAndSize.top, left = positionAndSize.left, width = positionAndSize.width, height = positionAndSize.height;
                     var _a = transform.originX, originX = _a === void 0 ? 'left' : _a, _b = transform.originY, originY = _b === void 0 ? 'top' : _b, _c = transform.scaleX, scaleX = _c === void 0 ? 1 : _c, _d = transform.scaleY, scaleY = _d === void 0 ? 1 : _d, _e = transform.flipX, flipX = _e === void 0 ? false : _e, _f = transform.flipY, flipY = _f === void 0 ? false : _f, _g = transform.angle, angle = _g === void 0 ? 0 : _g, _h = transform.skewX, skewX = _h === void 0 ? 0 : _h, _j = transform.skewY, skewY = _j === void 0 ? 0 : _j;
@@ -1899,6 +1900,15 @@
         });
     };
 
+    /** 加载图片 */
+    var loadImage = function (src) { return new Promise(function (resolve) {
+        var image = new Image();
+        image.src = src;
+        image.onload = function () {
+            resolve(image);
+        };
+    }); };
+
     /** 格子大小 */
     var GRID_SIZE = 15;
     /** 格子间隔 */
@@ -2029,28 +2039,24 @@
                 drawDashLine([width / 2, 0], [width / 2, height]);
                 drawDashLine([0, height / 2], [width, height / 2]);
             }, { zIndex: 999999 });
-            // loadImage('./assets/test.png').then(image => {
-            //   unbounedCanvas.on('render', () => {
-            //     const { width, height, zoom } = unbounedCanvas.getOptions();
-            //     drawers
-            //       .style({
-            //         angle: 45,
-            //         originX: 'center',
-            //         originY: 'center',
-            //         scaleX: zoom,
-            //         scaleY: zoom,
-            //         flipX: true,
-            //         flipY: true,
-            //         // skewX: 0,
-            //         // skewY: 0,
-            //       })
-            //       .image(
-            //         image,
-            //         width / 2,
-            //         height / 2,
-            //       )
-            //   })
-            // })
+            loadImage('./assets/test.png').then(function (image) {
+                unbounedCanvas.on('render', function () {
+                    var _a = unbounedCanvas.getOptions(), width = _a.width, height = _a.height, zoom = _a.zoom;
+                    drawers
+                        .style({
+                        angle: 45,
+                        originX: 'center',
+                        originY: 'center',
+                        scaleX: zoom,
+                        scaleY: zoom,
+                        flipX: true,
+                        flipY: true,
+                        skewX: 0,
+                        skewY: 0,
+                    })
+                        .image(image, width / 2, height / 2);
+                });
+            });
             (_b = loadFont(FONT_CONFIGURATION, 1000)) === null || _b === void 0 ? void 0 : _b.then(function (fontName) {
                 unbounedCanvas.on('render', function () {
                     var contentCenter = unbounedCanvas.getOptions().contentCenter;

@@ -151,29 +151,29 @@ const createCanvas = async () => {
 
   }, { zIndex: 999999 })
 
-  // loadImage('./assets/test.png').then(image => {
-  //   unbounedCanvas.on('render', () => {
-  //     const { width, height, zoom } = unbounedCanvas.getOptions();
+  loadImage('./assets/test.png').then(image => {
+    unbounedCanvas.on('render', () => {
+      const { width, height, zoom } = unbounedCanvas.getOptions();
       
-  //     drawers
-  //       .style({
-  //         angle: 45,
-  //         originX: 'center',
-  //         originY: 'center',
-  //         scaleX: zoom,
-  //         scaleY: zoom,
-  //         flipX: true,
-  //         flipY: true,
-  //         // skewX: 0,
-  //         // skewY: 0,
-  //       })
-  //       .image(
-  //         image,
-  //         width / 2,
-  //         height / 2,
-  //       )
-  //   })
-  // })
+      drawers
+        .style({
+          angle: 45,
+          originX: 'center',
+          originY: 'center',
+          scaleX: zoom,
+          scaleY: zoom,
+          flipX: true,
+          flipY: true,
+          skewX: 0,
+          skewY: 0,
+        })
+        .image(
+          image,
+          width / 2,
+          height / 2,
+        )
+    })
+  })
 
   loadFont(FONT_CONFIGURATION, 1000)?.then(fontName => {
     unbounedCanvas.on('render', () => {

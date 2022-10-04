@@ -145,18 +145,18 @@ const getDrawers = (ctx?: Context2D) => {
      */
     const protect = <Drawer extends AnyFunction>(
       drawerGetter: (ctx: Context2D, processor: PropertyProcessor) => Drawer,
-      styleSetter?: StyleSetter,
+      styleSetter: StyleSetter = {},
     ) => {
-      let transform = styleSetter && Object.keys(styleSetter)
+      let transform = Object.keys(styleSetter)
         .reduce<Partial<NeedProcessTypeStyles>>((result, key) => {
-          if (!TRANSFORM_DEFAULT_SETTING[key]) return result;
+          if (TRANSFORM_DEFAULT_SETTING[key] === undefined) return result;
           if (styleSetter[key] === TRANSFORM_DEFAULT_SETTING[key]) return result;
           result[key] = styleSetter[key];
           return result;
         }, {});
       
       const withTransform = (positionAndSize: PositionAndSize) => {
-        if (transform === undefined) return positionAndSize;
+        if (Object.keys(transform).length === 0) return positionAndSize;
         const { top, left, width, height } = positionAndSize;
         const {
           originX = 'left',
