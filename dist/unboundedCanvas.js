@@ -293,10 +293,6 @@
              */
             this.zoom = 1;
             /**
-             * 是否正在绘制
-             */
-            this.isRendering = false;
-            /**
              * 是否正在聚焦
              */
             this.isFocuing = false;
@@ -486,9 +482,8 @@
         /**
          * 渲染画布
          */
-        UnboundedCanvas.prototype.render = function (withAnimation) {
+        UnboundedCanvas.prototype.render = function () {
             var _this = this;
-            if (withAnimation === void 0) { withAnimation = true; }
             var _render = function () {
                 var ctx = _this.getContext();
                 if (!ctx)
@@ -504,33 +499,28 @@
                     _this._ctx.drawImage(_this._cacheElement, 0, 0);
                 }
             };
-            var renderPromise = function () {
-                return withAnimation
-                    ? new Promise(function (reslove) {
-                        window.requestAnimationFrame(function () {
-                            _render();
-                            reslove();
-                        });
-                    })
-                    : Promise.resolve(_render());
+            var renderFrame = function (renderNextFrame) {
+                window.requestAnimationFrame(function () {
+                    _render();
+                    if (renderNextFrame)
+                        renderNextFrame();
+                });
             };
-            // 绘制下一个
-            var drawNext = function () {
+            var renderNextFrame = function () {
                 if (_this.nextRender) {
                     var draw = _this.nextRender;
                     _this.nextRender = undefined;
                     if (draw)
-                        draw().then(drawNext);
+                        draw(renderNextFrame);
                 }
-                else
-                    _this.isRendering = false;
             };
-            if (this.isRendering) {
-                this.nextRender = renderPromise;
+            var currentTime = new Date().getTime();
+            if (this.preRenderTime && currentTime - this.preRenderTime < 10) {
+                this.nextRender = renderFrame;
             }
             else {
-                this.isRendering = true;
-                renderPromise().then(drawNext);
+                this.preRenderTime = currentTime;
+                renderFrame(renderNextFrame);
             }
         };
         /**
@@ -742,7 +732,7 @@
                                             x: oldContentCroods.x + distanceContentCenter.x * percent,
                                             y: oldContentCroods.y + distanceContentCenter.y * percent,
                                         };
-                                        _this.render(/* withAnimation */ false);
+                                        _this.render();
                                     }
                                 })];
                         case 1:
@@ -849,7 +839,7 @@
             // 初始数据
             this._renderListeners = [];
             this.moveInitDistance = undefined;
-            this.isRendering = false;
+            this.preRenderTime = undefined;
             this.sticky = false;
             this.movable = true;
             this.zoomable = true;

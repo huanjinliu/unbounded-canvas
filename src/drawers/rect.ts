@@ -12,6 +12,10 @@ export default (ctx: CanvasRenderingContext2D, composeCroods: PropertyProcessor)
       height: h,
     });
     const r = w > radius * 2 ? radius : 0;
+    if (r < 1) {
+      ctx.fillRect(left, top, width, height);
+      return;
+    }
     ctx.beginPath();
     ctx.moveTo(left + r, top);
     ctx.lineTo(left + width - r, top);

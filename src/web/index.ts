@@ -106,22 +106,37 @@ const createCanvas = async () => {
   unbounedCanvas.on('render', () => {
     const ctx = unbounedCanvas.getContext();
     if (!ctx) return;
-    const { width, height, unitSize, unitGap, contentCenter } = unbounedCanvas.getOptions();
+    const { width, height, unitSize, unitGap, contentCenter, devicePixelRatio, zoom } = unbounedCanvas.getOptions();
     const size = unitSize + unitGap
     const radius = getRadius();
+    const r = radius > 3 ? radius : 0;
   
     const unitFirstPoint = unbounedCanvas.getUnitFirstPoint(contentCenter);
+
+    const drawRadiusRectPath = (left: number, top: number) => {
+      ctx.moveTo(left + r, top);
+      ctx.lineTo(left + unitSize - r, top);
+      r && ctx.arcTo(left + unitSize, top, left + unitSize, top + r, radius);
+      ctx.lineTo(left + unitSize, top + unitSize - r);
+      r && ctx.arcTo(left + unitSize, top + unitSize, left + unitSize - r, top + unitSize, radius);
+      ctx.lineTo(left + r, top + unitSize);
+      r && ctx.arcTo(left, top + unitSize, left, top + unitSize - r, radius);
+      ctx.lineTo(left, top + r);
+      r && ctx.arcTo(left, top, left + r, top, radius);
+      ctx.lineTo(left, top + r);
+    }
     // 绘制矩形格子
+    ctx.save();
+    ctx.fillStyle = '#f2f2f2';
+    ctx.beginPath();
     for (let y = unitFirstPoint.y; y < height + size; y += size) {
       for (let x = unitFirstPoint.x; x < width + size; x += size) {
-        drawers
-          .style({
-            fillStyle: '#f2f2f2',
-            // angle: 45,
-          })
-          .rect(x, y, unitSize, unitSize, radius);
+        drawRadiusRectPath(x, y);
       }
     }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
     // 绘制中心点用于参考
     drawPoint([0, 0], 'pink', contentCenter);
   })

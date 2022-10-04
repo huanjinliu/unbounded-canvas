@@ -129,9 +129,9 @@ declare class UnboundedCanvas {
      */
     private nextRender;
     /**
-     * 是否正在绘制
+     * 上一次绘制时间
      */
-    private isRendering;
+    private preRenderTime;
     /**
      * 是否正在聚焦
      */

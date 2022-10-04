@@ -292,10 +292,6 @@
              */
             this.zoom = 1;
             /**
-             * 是否正在绘制
-             */
-            this.isRendering = false;
-            /**
              * 是否正在聚焦
              */
             this.isFocuing = false;
@@ -485,9 +481,8 @@
         /**
          * 渲染画布
          */
-        UnboundedCanvas.prototype.render = function (withAnimation) {
+        UnboundedCanvas.prototype.render = function () {
             var _this = this;
-            if (withAnimation === void 0) { withAnimation = true; }
             var _render = function () {
                 var ctx = _this.getContext();
                 if (!ctx)
@@ -503,33 +498,28 @@
                     _this._ctx.drawImage(_this._cacheElement, 0, 0);
                 }
             };
-            var renderPromise = function () {
-                return withAnimation
-                    ? new Promise(function (reslove) {
-                        window.requestAnimationFrame(function () {
-                            _render();
-                            reslove();
-                        });
-                    })
-                    : Promise.resolve(_render());
+            var renderFrame = function (renderNextFrame) {
+                window.requestAnimationFrame(function () {
+                    _render();
+                    if (renderNextFrame)
+                        renderNextFrame();
+                });
             };
-            // 绘制下一个
-            var drawNext = function () {
+            var renderNextFrame = function () {
                 if (_this.nextRender) {
                     var draw = _this.nextRender;
                     _this.nextRender = undefined;
                     if (draw)
-                        draw().then(drawNext);
+                        draw(renderNextFrame);
                 }
-                else
-                    _this.isRendering = false;
             };
-            if (this.isRendering) {
-                this.nextRender = renderPromise;
+            var currentTime = new Date().getTime();
+            if (this.preRenderTime && currentTime - this.preRenderTime < 10) {
+                this.nextRender = renderFrame;
             }
             else {
-                this.isRendering = true;
-                renderPromise().then(drawNext);
+                this.preRenderTime = currentTime;
+                renderFrame(renderNextFrame);
             }
         };
         /**
@@ -741,7 +731,7 @@
                                             x: oldContentCroods.x + distanceContentCenter.x * percent,
                                             y: oldContentCroods.y + distanceContentCenter.y * percent,
                                         };
-                                        _this.render(/* withAnimation */ false);
+                                        _this.render();
                                     }
                                 })];
                         case 1:
@@ -848,7 +838,7 @@
             // 初始数据
             this._renderListeners = [];
             this.moveInitDistance = undefined;
-            this.isRendering = false;
+            this.preRenderTime = undefined;
             this.sticky = false;
             this.movable = true;
             this.zoomable = true;
@@ -891,6 +881,10 @@
                 height: h,
             }), left = _a.left, top = _a.top, width = _a.width, height = _a.height;
             var r = w > radius * 2 ? radius : 0;
+            if (r < 1) {
+                ctx.fillRect(left, top, width, height);
+                return;
+            }
             ctx.beginPath();
             ctx.moveTo(left + r, top);
             ctx.lineTo(left + width - r, top);
@@ -1009,16 +1003,29 @@
         }, UNIT_MATRIX);
     };
 
+    /** 变换默认值 */
+    var TRANSFORM_DEFAULT_SETTING = {
+        originX: 'left',
+        originY: 'top',
+        scaleX: 1,
+        scaleY: 1,
+        flipX: false,
+        flipY: false,
+        angle: 0,
+        skewX: 0,
+        skewY: 0,
+    };
     var getDrawers = function (ctx) {
         if (!ctx)
             throw ReferenceError('ctx is no define');
+        /** 设置公用默认参数 */
+        ctx.textBaseline = 'hanging';
         /**
          * 样式覆盖
          */
         var overwriteStyle = function (styleSetter) {
-            if (styleSetter === void 0) { styleSetter = {}; }
-            // 设置公用默认参数
-            ctx.textBaseline = 'hanging';
+            if (styleSetter === undefined)
+                return;
             // 如果是配置函数直接执行
             if (typeof styleSetter === 'function') {
                 styleSetter(ctx);
@@ -1049,80 +1056,93 @@
                     default: ctx[key] = value;
                 }
             });
-            // 加工函数，需要处理传入数据
-            var _a = styleSetter.originX, originX = _a === void 0 ? 'left' : _a, _b = styleSetter.originY, originY = _b === void 0 ? 'top' : _b, _c = styleSetter.scaleX, scaleX = _c === void 0 ? 1 : _c, _d = styleSetter.scaleY, scaleY = _d === void 0 ? 1 : _d, _e = styleSetter.flipX, flipX = _e === void 0 ? false : _e, _f = styleSetter.flipY, flipY = _f === void 0 ? false : _f, _g = styleSetter.angle, angle = _g === void 0 ? 0 : _g, _h = styleSetter.skewX, skewX = _h === void 0 ? 0 : _h, _j = styleSetter.skewY, skewY = _j === void 0 ? 0 : _j;
-            var processor = function (positionAndSize) {
-                var top = positionAndSize.top, left = positionAndSize.left, width = positionAndSize.width, height = positionAndSize.height;
-                var offset = {
-                    x: {
-                        'left': 0,
-                        'center': width / 2,
-                        'right': width,
-                    }[originX],
-                    y: {
-                        'top': 0,
-                        'center': height / 2,
-                        'bottom': height,
-                    }[originY],
-                };
-                var transformQueue = [
-                    // 位移
-                    BEHAVE_MATRICES.move(left, top),
-                    // 缩放
-                    BEHAVE_MATRICES.scale(scaleX, scaleY),
-                    // 旋转
-                    BEHAVE_MATRICES.rotate(angle),
-                    // 变形
-                    BEHAVE_MATRICES.skew(skewX, skewY),
-                    // 翻转
-                    BEHAVE_MATRICES.flip(flipX, flipY),
-                    BEHAVE_MATRICES.move(flipX ? -width : -offset.x * 2, flipY ? -height : -offset.y * 2),
-                ];
-                ctx.transform.apply(ctx, multiplyTransformMatrices(transformQueue));
-                return {
-                    left: offset.x,
-                    top: offset.y,
-                    width: width,
-                    height: height,
-                };
-            };
-            return processor;
-        };
-        /**
-         * 使绘制添加的新配置不破坏原有的绘制配置
-         * @param drawerGetter 形状绘制获取
-         * @param styleSetter 配置绘制样式
-         */
-        var protect = function (drawerGetter, styleSetter) {
-            if (styleSetter === void 0) { styleSetter = {}; }
-            return function () {
-                var args = [];
-                for (var _i = 0; _i < arguments.length; _i++) {
-                    args[_i] = arguments[_i];
-                }
-                return __awaiter(void 0, void 0, void 0, function () {
-                    var processor;
-                    var _a;
-                    return __generator(this, function (_b) {
-                        ctx.save();
-                        processor = (_a = overwriteStyle(styleSetter)) !== null && _a !== void 0 ? _a : (function (properties) { return properties; });
-                        drawerGetter(ctx, processor).apply(void 0, args);
-                        ctx.restore();
-                        return [2 /*return*/, ctx];
-                    });
-                });
-            };
         };
         /**
          * 获取绘制函数集合
          * @param styleSetter 配置绘制样式
+         * @param configs 配置
          */
-        var getProtectdrawers = function (styleSetter) { return ({
-            line: protect(getLineDrawer, styleSetter),
-            rect: protect(getRectDrawer, styleSetter),
-            text: protect(getTextDrawer, styleSetter),
-            image: protect(getImageDrawer, styleSetter),
-        }); };
+        var getProtectdrawers = function (styleSetter, configs) {
+            if (configs === void 0) { configs = {}; }
+            var _a = configs.temporary, temporary = _a === void 0 ? true : _a;
+            /**
+             * 使绘制添加的新配置不破坏原有的绘制配置
+             * @param drawerGetter 形状绘制获取
+             * @param styleSetter 配置绘制样式
+             */
+            var protect = function (drawerGetter, styleSetter) {
+                var transform = styleSetter && Object.keys(styleSetter)
+                    .reduce(function (result, key) {
+                    if (!TRANSFORM_DEFAULT_SETTING[key])
+                        return result;
+                    if (styleSetter[key] === TRANSFORM_DEFAULT_SETTING[key])
+                        return result;
+                    result[key] = styleSetter[key];
+                    return result;
+                }, {});
+                var withTransform = function (positionAndSize) {
+                    if (transform === undefined)
+                        return positionAndSize;
+                    var top = positionAndSize.top, left = positionAndSize.left, width = positionAndSize.width, height = positionAndSize.height;
+                    var _a = transform.originX, originX = _a === void 0 ? 'left' : _a, _b = transform.originY, originY = _b === void 0 ? 'top' : _b, _c = transform.scaleX, scaleX = _c === void 0 ? 1 : _c, _d = transform.scaleY, scaleY = _d === void 0 ? 1 : _d, _e = transform.flipX, flipX = _e === void 0 ? false : _e, _f = transform.flipY, flipY = _f === void 0 ? false : _f, _g = transform.angle, angle = _g === void 0 ? 0 : _g, _h = transform.skewX, skewX = _h === void 0 ? 0 : _h, _j = transform.skewY, skewY = _j === void 0 ? 0 : _j;
+                    var offset = {
+                        x: {
+                            'left': 0,
+                            'center': width / 2,
+                            'right': width,
+                        }[originX],
+                        y: {
+                            'top': 0,
+                            'center': height / 2,
+                            'bottom': height,
+                        }[originY],
+                    };
+                    var transformQueue = [
+                        // 位移
+                        BEHAVE_MATRICES.move(left, top),
+                        // 缩放
+                        BEHAVE_MATRICES.scale(scaleX, scaleY),
+                        // 旋转
+                        BEHAVE_MATRICES.rotate(angle),
+                        // 变形
+                        BEHAVE_MATRICES.skew(skewX, skewY),
+                        // 翻转
+                        BEHAVE_MATRICES.flip(flipX, flipY),
+                        BEHAVE_MATRICES.move(flipX ? -width : -offset.x * 2, flipY ? -height : -offset.y * 2),
+                    ];
+                    ctx.transform.apply(ctx, multiplyTransformMatrices(transformQueue));
+                    return {
+                        left: offset.x,
+                        top: offset.y,
+                        width: width,
+                        height: height,
+                    };
+                };
+                return function () {
+                    var args = [];
+                    for (var _i = 0; _i < arguments.length; _i++) {
+                        args[_i] = arguments[_i];
+                    }
+                    return __awaiter(void 0, void 0, void 0, function () {
+                        return __generator(this, function (_a) {
+                            temporary && ctx.save();
+                            overwriteStyle(styleSetter);
+                            drawerGetter(ctx, withTransform).apply(void 0, args);
+                            if (transform && !temporary)
+                                ctx.resetTransform();
+                            temporary && ctx.restore();
+                            return [2 /*return*/, ctx];
+                        });
+                    });
+                };
+            };
+            return {
+                line: protect(getLineDrawer, styleSetter),
+                rect: protect(getRectDrawer, styleSetter),
+                text: protect(getTextDrawer, styleSetter),
+                image: protect(getImageDrawer, styleSetter),
+            };
+        };
         return __assign({ style: getProtectdrawers }, getProtectdrawers());
     };
 
@@ -1943,21 +1963,35 @@
                 var ctx = unbounedCanvas.getContext();
                 if (!ctx)
                     return;
-                var _a = unbounedCanvas.getOptions(), width = _a.width, height = _a.height, unitSize = _a.unitSize, unitGap = _a.unitGap, contentCenter = _a.contentCenter;
+                var _a = unbounedCanvas.getOptions(), width = _a.width, height = _a.height, unitSize = _a.unitSize, unitGap = _a.unitGap, contentCenter = _a.contentCenter; _a.devicePixelRatio; _a.zoom;
                 var size = unitSize + unitGap;
                 var radius = getRadius();
+                var r = radius > 3 ? radius : 0;
                 var unitFirstPoint = unbounedCanvas.getUnitFirstPoint(contentCenter);
+                var drawRadiusRectPath = function (left, top) {
+                    ctx.moveTo(left + r, top);
+                    ctx.lineTo(left + unitSize - r, top);
+                    r && ctx.arcTo(left + unitSize, top, left + unitSize, top + r, radius);
+                    ctx.lineTo(left + unitSize, top + unitSize - r);
+                    r && ctx.arcTo(left + unitSize, top + unitSize, left + unitSize - r, top + unitSize, radius);
+                    ctx.lineTo(left + r, top + unitSize);
+                    r && ctx.arcTo(left, top + unitSize, left, top + unitSize - r, radius);
+                    ctx.lineTo(left, top + r);
+                    r && ctx.arcTo(left, top, left + r, top, radius);
+                    ctx.lineTo(left, top + r);
+                };
                 // 绘制矩形格子
+                ctx.save();
+                ctx.fillStyle = '#f2f2f2';
+                ctx.beginPath();
                 for (var y = unitFirstPoint.y; y < height + size; y += size) {
                     for (var x = unitFirstPoint.x; x < width + size; x += size) {
-                        drawers
-                            .style({
-                            fillStyle: '#f2f2f2',
-                            // angle: 45,
-                        })
-                            .rect(x, y, unitSize, unitSize, radius);
+                        drawRadiusRectPath(x, y);
                     }
                 }
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
                 // 绘制中心点用于参考
                 drawPoint([0, 0], 'pink', contentCenter);
             });

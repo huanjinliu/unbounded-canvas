@@ -166,9 +166,9 @@ class UnboundedCanvas {
   private nextRender: AnyFunction | undefined;
 
   /**
-   * 是否正在绘制
+   * 上一次绘制时间
    */
-  private isRendering: boolean = false;
+  private preRenderTime: number | undefined;
 
   /**
    * 是否正在聚焦
@@ -416,7 +416,7 @@ class UnboundedCanvas {
   /**
    * 渲染画布
    */
-  private render(withAnimation = true) {
+  private render() {
     const _render = () => {
       const ctx = this.getContext();
       if (!ctx) return;
@@ -430,28 +430,25 @@ class UnboundedCanvas {
         this._ctx.drawImage(this._cacheElement, 0, 0)
       };
     };
-    const renderPromise = () =>
-      withAnimation
-        ? new Promise<void>(reslove => {
-          window.requestAnimationFrame(() => {
-            _render();
-            reslove();
-          })
-        })
-        : Promise.resolve(_render());
-    // 绘制下一个
-    const drawNext = () => {
+    const renderFrame = (renderNextFrame?: () => void) => {
+      window.requestAnimationFrame(() => {
+        _render();
+        if (renderNextFrame) renderNextFrame();
+      })
+    };
+    const renderNextFrame = () => {
       if (this.nextRender) {
         const draw = this.nextRender;
         this.nextRender = undefined;
-        if (draw) draw().then(drawNext);
-      } else this.isRendering = false;
-    }
-    if (this.isRendering) {
-      this.nextRender = renderPromise;
+        if (draw) draw(renderNextFrame);
+      }
+    };
+    const currentTime = new Date().getTime();
+    if (this.preRenderTime && currentTime - this.preRenderTime < 10) {
+      this.nextRender = renderFrame;
     } else {
-      this.isRendering = true;
-      renderPromise().then(drawNext);
+      this.preRenderTime = currentTime;
+      renderFrame(renderNextFrame);
     }
   }
 
@@ -668,7 +665,7 @@ class UnboundedCanvas {
           x: oldContentCroods.x + distanceContentCenter.x * percent,
           y: oldContentCroods.y + distanceContentCenter.y * percent,
         };
-        this.render(/* withAnimation */false);
+        this.render();
       }
     })
     this.isFocuing = false;
@@ -782,7 +779,7 @@ class UnboundedCanvas {
     // 初始数据
     this._renderListeners = [];
     this.moveInitDistance = undefined;
-    this.isRendering = false;
+    this.preRenderTime = undefined;
     this.sticky = false;
     this.movable = true;
     this.zoomable = true;
