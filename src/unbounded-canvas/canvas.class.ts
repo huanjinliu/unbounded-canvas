@@ -1,78 +1,22 @@
 import { wait } from 'vivid-wait';
-
-interface CanvasOptions {
-  /**
-   * 画布宽度
-   */
-  width: number;
-  /**
-   * 画布高度
-   */
-  height: number;
-  /**
-   * 画布边界
-   */
-  bound?: [number, number];
-  /**
-   * 是否可内容画布移动
-   */
-  movable?: boolean;
-  /**
-   * 是否可画布缩放
-   */
-  zoomable?: boolean;
-  /**
-   * 像素单位设置
-   */
-  unit?: {
-    /**
-     * 像素单位格，实现像素化分格
-     */
-    size: number;
-    /**
-     * 像素单元格间距
-     */
-    gap?: number;
-    /**
-     * 是否移动粘连
-     */
-    sticky?: boolean
-    /**
-     * 缩放限制
-     */
-    zoomLimit?: [number, number];
-  },
-  /**
-   * 忽略设备像素比例
-   * @default false
-   */
-  ignoreDevicePixelRatio?: boolean;
-}
-
-/** 渲染相关 */
-type RenderListenerOptions = {
-  /**
-   * 图层层级
-   */
-  zIndex?: number;
-};
-
-type RenderType = 'render';
-
-type RenderListener = (options: RenderListenerOptions) => void;
-
-/** 事件相关 */
-type NaturalListener<K extends keyof HTMLElementEventMap> = {
-  eventName: K;
-  handler: (ev: HTMLElementEventMap[K]) => any;
-  options?: boolean | AddEventListenerOptions;
-  window?: boolean; 
-};
+import {
+  CanvasOptions,
+  NaturalListener,
+  RenderListener,
+  RenderListenerOptions,
+  RenderType,
+  ZoomSetting,
+} from './canvas';
 
 /** 默认空坐标 */
-const EMPTY_CROODINATE = { x: 0, y: 0 };
+const EMPTY_COORDINATE = { x: 0, y: 0 };
 /** 默认缩放限制 */
-const DEFAULT_ZOOM_LIMIT = [1, 100] as [number, number];
+const DEFAULT_ZOOM_SETTING: ZoomSetting = {
+  disabled: false,
+  min: 1,
+  max: 100,
+  center: 'canvas'
+};
 
 class UnboundedCanvas {
   /**
@@ -134,6 +78,12 @@ class UnboundedCanvas {
   * 是否可画布缩放
   */
   private zoomable: boolean = true;
+
+  /**
+   * 画布缩放中心
+   * @default 'canvas'
+   */
+  private zoomCenter: ZoomSetting['center'] = 'canvas';
 
   /**
    * 缩放值
@@ -200,39 +150,17 @@ class UnboundedCanvas {
     const {
       ignoreDevicePixelRatio = false,
       unit,
+      zoom = true,
       bound,
       movable = true,
-      zoomable = true,
     } = options;
-
-    const {
-      zoomLimit = DEFAULT_ZOOM_LIMIT,
-      size: unitSize = 1,
-      gap: unitGap = 0,
-      sticky = false,
-    } = unit || {};
-
     this._element = element;
     this._ctx = element.getContext('2d');
     this.devicePixelRatio = ignoreDevicePixelRatio
       ? 1
       : window.devicePixelRatio;
-    // 是否可拖动
-    this.movable = movable;
-    // 是否可缩放
-    this.zoomable = zoomable;
-    // 单位像素格至少需要1像素
-    this.unitSize = Math.max(1, Math.ceil(unitSize));
-    // 单位像素格间距不允许小于0
-    this.unitGap = Math.max(0, Math.ceil(unitGap));
-    // 是否移动粘连
-    this.sticky = sticky;
-    // 缩放必须付费需求
-    this.zoomLimit = zoomLimit[0] > 0 && zoomLimit[0] < zoomLimit[1]
-      ? zoomLimit
-      : DEFAULT_ZOOM_LIMIT;
 
-    // 构建缓存画布（离屏画布）
+    /** 构建缓存画布（离屏画布） */
     this._cacheElement = document.createElement('canvas');
     this._cacheContext = this._cacheElement.getContext('2d');
 
@@ -241,32 +169,53 @@ class UnboundedCanvas {
       width: this._element.width,
       height: this._element.height,
     };
-    // 初始画布参数
-    this.initOptions(options);
-
+    // 初始画布尺寸
+    this.initCanvas(options);
     // 初始画布中心点
     this._canvasCenter = {
       x: this._element.width / this.devicePixelRatio / 2,
       y: this._element.height / this.devicePixelRatio / 2,
     };
+    // 初始内容中心点
+    this._contentCenter = { ...this._canvasCenter };
 
-    // 初始边界，默认无边界（无限拖拽）
+    /** 移动配置 */
+    this.movable = movable;
+
+    /** 缩放配置 */
+    const { disabled = false, min = 1, max = 100, center = 'canvas'} = zoom === true
+      ? DEFAULT_ZOOM_SETTING
+      : typeof zoom === 'object' ? zoom : { disabled: true }
+    // 是否可缩放
+    this.zoomable = !disabled;
+    // 缩放限制
+    this.zoomLimit = min > 0 && min <= max ? [min, max] : [1, 100];
+    // 缩放中心
+    this.zoomCenter = center;
+
+    /** 单位像素格配置 */
+    const { size: unitSize = 1, gap: unitGap = 0, sticky = false } = unit || {};
+    // 单位像素格至少需要1像素
+    this.unitSize = Math.max(1, Math.ceil(unitSize));
+    // 单位像素格间距不允许小于0
+    this.unitGap = Math.max(0, Math.ceil(unitGap));
+    // 是否移动粘连
+    this.sticky = sticky;
+
+    /** 初始边界，默认无边界（无限拖拽） */
     if (bound) this.bound = [
       Math.max(this._element.width / this.devicePixelRatio, bound[0] ?? Infinity),
       Math.max(this._element.height / this.devicePixelRatio, bound[1] ?? Infinity),
     ];
 
-    // 初始内容中心点
-    this._contentCenter = { ...this._canvasCenter };
-
-    // 初始画布监听器
+    /** 初始画布监听器 */
     this.initListeners();
   }
 
   /**
    * 初始画布
    */
-  private initOptions(options: CanvasOptions) {
+  private initCanvas(options: CanvasOptions) {
     if (!this._element || !this._cacheElement) return;
 
     // 尺寸至少大于等于1
@@ -287,6 +236,23 @@ class UnboundedCanvas {
   }
 
   /**
+   * 更新画布
+   */
+  updateCanvas(width: number, height: number) {
+    const { canvasCenter: oldCanvasCenter, contentCenter } = this.getOptions();
+    this.initCanvas({ width, height });
+    this._canvasCenter = {
+      x: this._element!.width / this.devicePixelRatio / 2,
+      y: this._element!.height / this.devicePixelRatio / 2,
+    };
+    this._contentCenter = {
+      x: contentCenter.x + (this._canvasCenter.x - oldCanvasCenter.x),
+      y: contentCenter.y + (this._canvasCenter.y - oldCanvasCenter.y),
+    }
+    this.render();
+  }
+
+  /**
    * 获取画布参数
    */
   getOptions() {
@@ -298,22 +264,9 @@ class UnboundedCanvas {
       unitGap: this.unitGap * this.devicePixelRatio * this.zoom,
       zoom: this.zoom,
       zoomLimit: this.zoomLimit,
-      canvasCenter: this._canvasCenter ?? { ...EMPTY_CROODINATE },
-      contentCenter: this._contentCenter ?? { ...EMPTY_CROODINATE },
+      canvasCenter: this._canvasCenter ?? { ...EMPTY_COORDINATE },
+      contentCenter: this._contentCenter ?? { ...EMPTY_COORDINATE },
     }
-  }
-
-  /**
-   * 设置画布参数
-   */
-  setOptions(options: Pick<CanvasOptions, 'width' | 'height'>) {
-    const { width, height } = this.getOptions()
-    this.initOptions(options)
-    this._canvasCenter = {
-      x: width / this.devicePixelRatio / 2,
-      y: height / this.devicePixelRatio / 2,
-    };
-    this.render();
   }
 
   /**
@@ -334,7 +287,7 @@ class UnboundedCanvas {
   /**
    * 根据页面坐标获取单位像素坐标（相对于内容中心而不是画布中心）
    */
-  viewCroods2UnitPoint(x: number, y: number) {
+  viewCoords2UnitPoint(x: number, y: number) {
     const { unitSize, unitGap, canvasCenter } = this.getOptions();
     const size = unitSize + unitGap;
     const halfSize = unitSize / 2;
@@ -358,10 +311,10 @@ class UnboundedCanvas {
   /**
    * 根据单位像素坐标获取页面坐标（相对于画布左上角）
    */
-  unitPoint2ViewCroods(
+  unitPoint2ViewCoords(
     x: number,
     y: number,
-    contentCenter = this._contentCenter ?? { ...EMPTY_CROODINATE }
+    contentCenter = this._contentCenter ?? { ...EMPTY_COORDINATE }
   ) {
     const { unitSize, unitGap, canvasCenter } = this.getOptions();
     const size = unitSize + unitGap;
@@ -388,7 +341,7 @@ class UnboundedCanvas {
    * 计算单位像素格子绘制起始点
    * @param contentCenter 指定内容中心点
    */
-  getUnitFirstPoint (contentCenter = this._canvasCenter ?? { ...EMPTY_CROODINATE }) {
+  getUnitFirstPoint (contentCenter = this._canvasCenter ?? { ...EMPTY_COORDINATE }) {
     const { unitSize, unitGap } = this.getOptions();
     const size = unitSize + unitGap;
     const halfSize = unitSize / 2;
@@ -479,8 +432,8 @@ class UnboundedCanvas {
   /**
    * 缩放
    */
-  handleZoom (newZoom: number, focusPoint: Coordinate = this._canvasCenter ?? { ...EMPTY_CROODINATE }) {
-    const { width, height, unitSize, contentCenter, devicePixelRatio } = this.getOptions();
+  handleZoom (newZoom: number, focusPoint: Coordinate = this._canvasCenter ?? { ...EMPTY_COORDINATE }) {
+    const { width, height, unitSize, contentCenter, canvasCenter, devicePixelRatio } = this.getOptions();
     const [boundWidth, boundHeight] = this.bound; 
     const preZoom = this.zoom;
 
@@ -488,7 +441,7 @@ class UnboundedCanvas {
     const [xMinZoom, yMinZoom] = [
       width / boundWidth / devicePixelRatio,
       height / boundHeight / devicePixelRatio,
-    ]
+    ];
     this.zoom = newZoom < xMinZoom || newZoom < yMinZoom
       ? Math.max(xMinZoom, yMinZoom)
       : newZoom;
@@ -516,7 +469,7 @@ class UnboundedCanvas {
       if (this.zoomStickyTimer) clearTimeout(this.zoomStickyTimer);
       this.zoomStickyTimer = setTimeout(() => {
         const { contentCenter } = this.getOptions();
-        const point = this.viewCroods2UnitPoint(
+        const point = this.viewCoords2UnitPoint(
           contentCenter.x,
           contentCenter.y,
         );
@@ -572,7 +525,7 @@ class UnboundedCanvas {
         // 如果粘连，格子会保持原有的格子区域
         if (this.sticky) {
           if (this.zoomStickyTimer) clearTimeout(this.zoomStickyTimer);
-          const point = this.viewCroods2UnitPoint(
+          const point = this.viewCoords2UnitPoint(
             contentCenter.x,
             contentCenter.y,
           );
@@ -620,6 +573,7 @@ class UnboundedCanvas {
       eventName: 'wheel',
       handler: (event) => {
         if (this.moveInitDistance || this.isFocuing) return;
+        const { canvasCenter, contentCenter } = this.getOptions(); 
         const { offsetX, offsetY, deltaY } = event;
         const dZoom = 0.999 ** (deltaY / 2);
         const newZoom = Math.min(
@@ -627,16 +581,20 @@ class UnboundedCanvas {
           this.zoomLimit[1]
         );
   
-        this.handleZoom(newZoom, {
-          x: offsetX,
-          y: offsetY,
-        });
+        this.handleZoom(
+          newZoom, 
+          {
+            'canvas': canvasCenter,
+            'content': contentCenter,
+            'operation': { x: offsetX, y: offsetY },
+          }[this.zoomCenter],
+        );
       }
     });
   }
 
   /**
-   * 回到中心
+   * 聚焦到某个特定坐标点，坐标点相对于内容画布
    */
   async focus(point: Point, options: Partial<{
     speedMode: 'linear' | 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out',
@@ -646,11 +604,11 @@ class UnboundedCanvas {
 
     const { speedMode = 'ease-in-out', duration } = options;
     const { unitSize, unitGap, canvasCenter, contentCenter } = this.getOptions();
-    const pointCrood = this.unitPoint2ViewCroods(...point, canvasCenter);
-    const oldContentCroods = { ...contentCenter };
+    const pointCoord = this.unitPoint2ViewCoords(...point, canvasCenter);
+    const oldContentCoords = { ...contentCenter };
     const distanceContentCenter = {
-      x: pointCrood.x - oldContentCroods.x,
-      y: pointCrood.y - oldContentCroods.y,
+      x: pointCoord.x - oldContentCoords.x,
+      y: pointCoord.y - oldContentCoords.y,
     };
     const maxDistance = Math.max(Math.abs(distanceContentCenter.x), Math.abs(distanceContentCenter.y));
     const distanceGridLength = Math.ceil(maxDistance * this.devicePixelRatio / (unitSize + unitGap));
@@ -662,13 +620,21 @@ class UnboundedCanvas {
       mode: speedMode,
       onUpdate: percent => {
         this._contentCenter = {
-          x: oldContentCroods.x + distanceContentCenter.x * percent,
-          y: oldContentCroods.y + distanceContentCenter.y * percent,
+          x: oldContentCoords.x + distanceContentCenter.x * percent,
+          y: oldContentCoords.y + distanceContentCenter.y * percent,
         };
         this.render();
       }
     })
     this.isFocuing = false;
+  }
+
+  /**
+   * 直接设置内容中心
+   */
+  setContentCenter(coord: Coordinate) {
+    this._contentCenter = coord;
+    this.render();
   }
 
   /**
@@ -785,10 +751,14 @@ class UnboundedCanvas {
     this.sticky = false;
     this.movable = true;
     this.zoomable = true;
+    this.zoomCenter = 'canvas';
     this.unitGap = 0;
     this.unitSize = 1;
     this.zoom = 1;
-    this.zoomLimit = DEFAULT_ZOOM_LIMIT;
+    this.zoomLimit = [
+      DEFAULT_ZOOM_SETTING.min,
+      DEFAULT_ZOOM_SETTING.max,
+    ];
 
     // 置空数据
     this._cacheContext = null;

@@ -1,60 +1,4 @@
-interface CanvasOptions {
-    /**
-     * 画布宽度
-     */
-    width: number;
-    /**
-     * 画布高度
-     */
-    height: number;
-    /**
-     * 画布边界
-     */
-    bound?: [number, number];
-    /**
-     * 是否可内容画布移动
-     */
-    movable?: boolean;
-    /**
-     * 是否可画布缩放
-     */
-    zoomable?: boolean;
-    /**
-     * 像素单位设置
-     */
-    unit?: {
-        /**
-         * 像素单位格，实现像素化分格
-         */
-        size: number;
-        /**
-         * 像素单元格间距
-         */
-        gap?: number;
-        /**
-         * 是否移动粘连
-         */
-        sticky?: boolean;
-        /**
-         * 缩放限制
-         */
-        zoomLimit?: [number, number];
-    };
-    /**
-     * 忽略设备像素比例
-     * @default false
-     */
-    ignoreDevicePixelRatio?: boolean;
-}
-/** 渲染相关 */
-declare type RenderListenerOptions = {
-    /**
-     * 图层层级
-     */
-    zIndex?: number;
-};
-declare type RenderType = 'render';
-declare type RenderListener = (options: RenderListenerOptions) => void;
+import { CanvasOptions, RenderListener, RenderListenerOptions, RenderType } from './canvas';
 declare class UnboundedCanvas {
     /**
      * 缓存画布（实现离屏渲染）
@@ -105,6 +49,11 @@ declare class UnboundedCanvas {
     */
     private zoomable;
     /**
+     * 画布缩放中心
+     * @default 'canvas'
+     */
+    private zoomCenter;
+    /**
      * 缩放值
      */
     private zoom;
@@ -152,7 +101,11 @@ declare class UnboundedCanvas {
     /**
      * 初始画布
      */
-    private initOptions;
+    private initCanvas;
+    /**
+     * 更新画布
+     */
+    updateCanvas(width: number, height: number): void;
     /**
      * 获取画布参数
      */
@@ -168,10 +121,6 @@ declare class UnboundedCanvas {
         contentCenter: Coordinate;
     };
     /**
-     * 设置画布参数
-     */
-    setOptions(options: Pick<CanvasOptions, 'width' | 'height'>): void;
-    /**
      * 初始画布监听器
      */
     private initListeners;
@@ -182,11 +131,11 @@ declare class UnboundedCanvas {
     /**
      * 根据页面坐标获取单位像素坐标（相对于内容中心而不是画布中心）
      */
-    viewCroods2UnitPoint(x: number, y: number): Point;
+    viewCoords2UnitPoint(x: number, y: number): Point;
     /**
      * 根据单位像素坐标获取页面坐标（相对于画布左上角）
      */
-    unitPoint2ViewCroods(x: number, y: number, contentCenter?: Coordinate): {
+    unitPoint2ViewCoords(x: number, y: number, contentCenter?: Coordinate): {
         x: number;
         y: number;
     };
@@ -219,12 +168,16 @@ declare class UnboundedCanvas {
      */
     private initZoomListener;
     /**
-     * 回到中心
+     * 聚焦到某个特定坐标点，坐标点相对于内容画布
      */
     focus(point: Point, options?: Partial<{
         speedMode: 'linear' | 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out';
         duration: number;
     }>): Promise<void>;
+    /**
+     * 直接设置内容中心
+     */
+    setContentCenter(coord: Coordinate): void;
     /**
      * 控制原生监听器
      */

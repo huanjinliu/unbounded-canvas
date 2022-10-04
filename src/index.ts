@@ -1,3 +1,3 @@
-import UnboundedCanvas from './canvas.class';
+import UnboundedCanvas from './unbounded-canvas/canvas.class';
 
 export default UnboundedCanvas;

@@ -34,10 +34,10 @@ const createCanvas = async () => {
       size: GRID_SIZE,
       gap: GRID_GAP,
       // sticky: true,
-      zoomLimit: [
-        GRID_MIN_SIZE / GRID_SIZE,
-        GRID_MAX_SIZE / GRID_SIZE,
-      ],
+    },
+    zoom: {
+      min: GRID_MIN_SIZE / GRID_SIZE,
+      max: GRID_MAX_SIZE / GRID_SIZE,
     }
   });
 
@@ -151,34 +151,34 @@ const createCanvas = async () => {
 
   }, { zIndex: 999999 })
 
-  loadImage('./assets/test.png').then(image => {
-    unbounedCanvas.on('render', () => {
-      const { width, height, zoom } = unbounedCanvas.getOptions();
+  // loadImage('./assets/test.png').then(image => {
+  //   unbounedCanvas.on('render', () => {
+  //     const { width, height, zoom } = unbounedCanvas.getOptions();
       
-      drawers
-        .style({
-          angle: 45,
-          originX: 'center',
-          originY: 'center',
-          scaleX: zoom,
-          scaleY: zoom,
-          flipX: true,
-          flipY: true,
-          // skewX: 0,
-          // skewY: 0,
-        })
-        .image(
-          image,
-          width / 2,
-          height / 2,
-        )
-    })
-  })
+  //     drawers
+  //       .style({
+  //         angle: 45,
+  //         originX: 'center',
+  //         originY: 'center',
+  //         scaleX: zoom,
+  //         scaleY: zoom,
+  //         flipX: true,
+  //         flipY: true,
+  //         // skewX: 0,
+  //         // skewY: 0,
+  //       })
+  //       .image(
+  //         image,
+  //         width / 2,
+  //         height / 2,
+  //       )
+  //   })
+  // })
 
   loadFont(FONT_CONFIGURATION, 1000)?.then(fontName => {
     unbounedCanvas.on('render', () => {
       const { contentCenter } = unbounedCanvas.getOptions();
-      const point = unbounedCanvas.viewCroods2UnitPoint(
+      const point = unbounedCanvas.viewCoords2UnitPoint(
         contentCenter.x,
         contentCenter.y,
       );
@@ -192,27 +192,13 @@ const createCanvas = async () => {
   })
 
   window.addEventListener('resize', throttle(() => {
-    const { canvasCenter: oldCanvasCenter } = unbounedCanvas.getOptions();
-    unbounedCanvas.setOptions({
-      width: document.body.clientWidth,
-      height: document.body.clientHeight,
-    });
-    const { canvasCenter, contentCenter } = unbounedCanvas.getOptions();
-    const newContentCroods = {
-      x: contentCenter.x + (canvasCenter.x - oldCanvasCenter.x),
-      y: contentCenter.y + (canvasCenter.y - oldCanvasCenter.y),
-    }
-    // 保持内容区域跟随中心变动
-    unbounedCanvas.focus(
-      unbounedCanvas.viewCroods2UnitPoint(
-        newContentCroods.x,
-        newContentCroods.y
-      )
-    )
+    unbounedCanvas.updateCanvas(
+      document.body.clientWidth,
+      document.body.clientHeight,
+    );
   }, 50));
   return unbounedCanvas;
 };
-
 
 createCanvas().then((canvas) => {
   const button = document.querySelector('#back_center');
