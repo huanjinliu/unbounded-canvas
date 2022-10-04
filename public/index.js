@@ -763,6 +763,7 @@
                     eventName: eventName,
                     handler: handler,
                     options: _options,
+                    window: isWindow,
                 });
                 listenerTarget.addEventListener(eventName, handler, _options);
             }
@@ -835,8 +836,9 @@
                 if (listener)
                     this.controlNaturalListener('off', listener);
             }
-            // 初始数据
+            // 清空渲染列表
             this._renderListeners = [];
+            // 初始数据
             this.moveInitDistance = undefined;
             this.preRenderTime = undefined;
             this.sticky = false;

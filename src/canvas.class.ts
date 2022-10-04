@@ -690,6 +690,7 @@ class UnboundedCanvas {
         eventName,
         handler,
         options: _options,
+        window: isWindow,
       })
       listenerTarget.addEventListener(eventName, handler as any, _options);
     } else {
@@ -775,9 +776,10 @@ class UnboundedCanvas {
       const listener = listeners.pop();
       if (listener) this.controlNaturalListener('off', listener);
     };
+    // 清空渲染列表
+    this._renderListeners = [];
 
     // 初始数据
-    this._renderListeners = [];
     this.moveInitDistance = undefined;
     this.preRenderTime = undefined;
     this.sticky = false;
