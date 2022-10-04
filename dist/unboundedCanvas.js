@@ -743,7 +743,7 @@
                             };
                             maxDistance = Math.max(Math.abs(distanceContentCenter.x), Math.abs(distanceContentCenter.y));
                             distanceGridLength = Math.ceil(maxDistance * this.devicePixelRatio / (unitSize + unitGap));
-                            time = duration !== null && duration !== void 0 ? duration : Math.min(distanceGridLength * 50, 2000);
+                            time = duration !== null && duration !== void 0 ? duration : Math.max(Math.min(distanceGridLength * 50, 2000), 200);
                             this.isFocuing = true;
                             // 在指定时间内通过特定过渡方式变成指定值
                             return [4 /*yield*/, t(time, {

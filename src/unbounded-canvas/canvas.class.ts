@@ -612,7 +612,7 @@ class UnboundedCanvas {
     };
     const maxDistance = Math.max(Math.abs(distanceContentCenter.x), Math.abs(distanceContentCenter.y));
     const distanceGridLength = Math.ceil(maxDistance * this.devicePixelRatio / (unitSize + unitGap));
-    let time = duration ?? Math.min(distanceGridLength * 50, 2000);
+    let time = duration ?? Math.max(Math.min(distanceGridLength * 50, 2000), 300);
 
     this.isFocuing = true;
     // 在指定时间内通过特定过渡方式变成指定值

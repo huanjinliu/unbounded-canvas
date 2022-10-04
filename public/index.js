@@ -742,7 +742,7 @@
                             };
                             maxDistance = Math.max(Math.abs(distanceContentCenter.x), Math.abs(distanceContentCenter.y));
                             distanceGridLength = Math.ceil(maxDistance * this.devicePixelRatio / (unitSize + unitGap));
-                            time = duration !== null && duration !== void 0 ? duration : Math.min(distanceGridLength * 50, 2000);
+                            time = duration !== null && duration !== void 0 ? duration : Math.max(Math.min(distanceGridLength * 50, 2000), 300);
                             this.isFocuing = true;
                             // 在指定时间内通过特定过渡方式变成指定值
                             return [4 /*yield*/, t(time, {
@@ -1052,12 +1052,12 @@
     var getDrawers = function (ctx) {
         if (!ctx)
             throw ReferenceError('ctx is no define');
-        /** 设置公用默认参数 */
-        ctx.textBaseline = 'hanging';
         /**
          * 样式覆盖
          */
         var overwriteStyle = function (styleSetter) {
+            /** 设置公用默认参数 */
+            ctx.textBaseline = 'hanging';
             if (styleSetter === undefined)
                 return;
             // 如果是配置函数直接执行

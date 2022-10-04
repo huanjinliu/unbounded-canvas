@@ -79,13 +79,14 @@ const TRANSFORM_DEFAULT_SETTING = {
 
 const getDrawers = (ctx?: Context2D) => {
   if (!ctx) throw ReferenceError('ctx is no define');
-  /** 设置公用默认参数 */
-  ctx.textBaseline = 'hanging';
 
   /**
    * 样式覆盖
    */
   const overwriteStyle = (styleSetter?: StyleSetter) => {
+    /** 设置公用默认参数 */
+    ctx.textBaseline = 'hanging';
+
     if (styleSetter === undefined) return;
     // 如果是配置函数直接执行
     if (typeof styleSetter === 'function') {
