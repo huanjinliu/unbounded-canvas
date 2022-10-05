@@ -261,6 +261,119 @@
       });
     }
 
+    var Canvas = /** @class */ (function () {
+        function Canvas(width, height, extraOptions) {
+            if (extraOptions === void 0) { extraOptions = {}; }
+            var _this = this;
+            this._element = null;
+            this._context2d = null;
+            this._cacheElement = null;
+            this._cacheContext2d = null;
+            /**
+             * 渲染器
+             */
+            this._renders = [];
+            var _a = extraOptions.styles, styles = _a === void 0 ? {} : _a, _b = extraOptions.needOffScreenCache, needOffScreenCache = _b === void 0 ? false : _b;
+            this._element = document.createElement("canvas");
+            if (width)
+                this._element.width = width;
+            if (height)
+                this._element.height = height;
+            Object.keys(styles).forEach(function (key) {
+                _this._element.style[key] = styles[key];
+            });
+            this._context2d = this._element.getContext("2d");
+            // 构建缓存画布（离屏画布）
+            if (needOffScreenCache)
+                this.createCacheCanvas();
+        }
+        /**
+         * 取得canvas节点
+         */
+        Canvas.prototype.getElement = function () {
+            return this._element;
+        };
+        /**
+         * 取得画布上下文
+         */
+        Canvas.prototype.getContext = function () {
+            return this._context2d;
+        };
+        /**
+         * 改变画布尺寸
+         */
+        Canvas.prototype.changeSize = function (width, height) {
+            if (!this._element)
+                return;
+            this._element.width = width;
+            this._element.height = height;
+            if (!this._cacheElement)
+                return;
+            this._cacheElement.width = width;
+            this._cacheElement.height = height;
+        };
+        /**
+         * 创建缓存画布（离屏画布）
+         */
+        Canvas.prototype.createCacheCanvas = function () {
+            if (!this._element)
+                return;
+            this._cacheElement = document.createElement("canvas");
+            this._cacheElement.width = this._element.width;
+            this._cacheElement.height = this._element.height;
+            this._cacheContext2d = this._cacheElement.getContext("2d");
+            return {
+                canvas: this._cacheElement,
+                context2d: this._cacheContext2d,
+            };
+        };
+        /**
+         * 添加渲染器
+         */
+        Canvas.prototype.addRender = function (handler) {
+            this._renders.push(handler);
+            return this;
+        };
+        /**
+         * 执行全部渲染器
+         */
+        Canvas.prototype.renderAll = function () {
+            var _a;
+            if (!this._element)
+                return;
+            var _context = (_a = this._cacheContext2d) !== null && _a !== void 0 ? _a : this._context2d;
+            if (!_context)
+                return;
+            _context.clearRect(0, 0, this._element.width, this._element.height);
+            this._renders.forEach(function (render) { return render(_context); });
+            if (this._cacheElement && this._context2d) {
+                this._context2d.clearRect(0, 0, this._element.width, this._element.height);
+                this._context2d.drawImage(this._cacheElement, 0, 0);
+            }
+        };
+        /**
+         * 画布销毁
+         */
+        Canvas.prototype.dispose = function () {
+            var disposeCanvas = function (canvas, ctx) {
+                canvas.width = 1;
+                canvas.height = 1;
+                ctx === null || ctx === void 0 ? void 0 : ctx.clearRect(0, 0, 1, 1);
+                canvas.removeAttribute('style');
+            };
+            if (this._element)
+                disposeCanvas(this._element, this._context2d);
+            if (this._cacheElement)
+                disposeCanvas(this._cacheElement, this._cacheContext2d);
+            this._renders = [];
+            this._element = null;
+            this._context2d = null;
+            this._cacheElement = null;
+            this._cacheContext2d = null;
+        };
+        return Canvas;
+    }());
+
     /** 默认空坐标 */
     var EMPTY_COORDINATE = { x: 0, y: 0 };
     /** 默认缩放限制 */
@@ -272,7 +385,19 @@
     };
     var UnboundedCanvas = /** @class */ (function () {
         function UnboundedCanvas(element, options) {
-            var _a, _b;
+            if (options === void 0) { options = {}; }
+            /**
+             * 画布容器
+             */
+            this._container = null;
+            /**
+             * 画布中心点
+             */
+            this._canvasCenter = null;
+            /**
+             * 内容中心点
+             */
+            this._contentCenter = null;
             /**
              * 单位像素格
              */
@@ -303,38 +428,91 @@
              */
             this.zoom = 1;
             /**
+             * 移动粘连
+             */
+            this.sticky = false;
+            /**
+             * 缩放限制
+             */
+            this.zoomLimit = [
+                DEFAULT_ZOOM_SETTING.min,
+                DEFAULT_ZOOM_SETTING.max,
+            ];
+            /**
              * 是否正在聚焦
              */
             this.isFocuing = false;
             /**
-             * 渲染监听器
+             * 渲染图层
              */
-            this._renderListeners = [];
+            this._layers = [];
             /**
              * 记录监听器
              */
             this._listeners = [];
-            var _c = options.ignoreDevicePixelRatio, ignoreDevicePixelRatio = _c === void 0 ? false : _c, unit = options.unit, _d = options.zoom, zoom = _d === void 0 ? true : _d, bound = options.bound, _e = options.movable, movable = _e === void 0 ? true : _e;
-            this._element = element;
-            this._ctx = element.getContext('2d');
+            /**
+             * 记录初始数据
+             */
+            this._store = null;
+            /** 存储源画布，用于读取尺寸和销毁时还原 */
+            this._store = element;
+            /** 初始基本配置 */
+            var _a = options.ignoreDevicePixelRatio, ignoreDevicePixelRatio = _a === void 0 ? false : _a;
             this.devicePixelRatio = ignoreDevicePixelRatio
                 ? 1
-                : window.devicePixelRatio;
-            /** 构建缓存画布（离屏画布） */
-            this._cacheElement = document.createElement('canvas');
-            this._cacheContext = this._cacheElement.getContext('2d');
-            // 记录初始尺寸，用于销毁时恢复尺寸
-            this._stores = {
-                width: this._element.width,
-                height: this._element.height,
-            };
-            // 初始画布尺寸
+                : Math.ceil(window.devicePixelRatio);
+            /** 初始画布尺寸 */
             this.initCanvas(options);
+            /** 初始画布配置 */
+            this.initOptions(options);
+            /** 初始画布监听器 */
+            this.initListeners();
+        }
+        /**
+         * 初始画布
+         */
+        UnboundedCanvas.prototype.initCanvas = function (options) {
+            var _this = this;
+            if (!this._store)
+                return;
+            var _a = options.width, _width = _a === void 0 ? this._store.width : _a, _b = options.height, _height = _b === void 0 ? this._store.height : _b, className = options.className;
+            // 尺寸至少大于等于1
+            var width = Math.max(1, Math.ceil(_width));
+            var height = Math.max(1, Math.ceil(_height));
+            if (!this._container) {
+                var parentNode = this._store.parentNode;
+                if (!parentNode)
+                    return;
+                // 构建容器，所有事件挂载到该容器上
+                this._container = document.createElement('div');
+                this._container.classList.add("unbounded-canvas-container");
+                if (className)
+                    this._container.classList.add(className);
+                this._container.style.width = "".concat(width, "px");
+                this._container.style.height = "".concat(height, "px");
+                parentNode.insertBefore(this._container, this._store);
+                parentNode.removeChild(this._store);
+            }
+            else {
+                this._container.style.width = "".concat(width, "px");
+                this._container.style.height = "".concat(height, "px");
+                this._layers.forEach(function (_a) {
+                    var canvas = _a.canvas;
+                    canvas.changeSize(width * _this.devicePixelRatio, height * _this.devicePixelRatio);
+                });
+            }
+        };
+        /**
+         * 初始配置
+         */
+        UnboundedCanvas.prototype.initOptions = function (options) {
+            var _a, _b;
+            if (!this._container)
+                return;
+            var _c = this._container, width = _c.clientWidth, height = _c.clientHeight;
+            var unit = options.unit, _d = options.zoom, zoom = _d === void 0 ? true : _d, bound = options.bound, _e = options.movable, movable = _e === void 0 ? true : _e;
             // 初始画布中心点
-            this._canvasCenter = {
-                x: this._element.width / this.devicePixelRatio / 2,
-                y: this._element.height / this.devicePixelRatio / 2,
-            };
+            this._canvasCenter = { x: width / 2, y: height / 2 };
             // 初始内容中心点
             this._contentCenter = __assign({}, this._canvasCenter);
             /** 移动配置 */
@@ -360,40 +538,22 @@
             /** 初始边界，默认无边界（无限拖拽） */
             if (bound)
                 this.bound = [
-                    Math.max(this._element.width / this.devicePixelRatio, (_a = bound[0]) !== null && _a !== void 0 ? _a : Infinity),
-                    Math.max(this._element.height / this.devicePixelRatio, (_b = bound[1]) !== null && _b !== void 0 ? _b : Infinity),
+                    Math.max(width, (_a = bound[0]) !== null && _a !== void 0 ? _a : Infinity),
+                    Math.max(height, (_b = bound[1]) !== null && _b !== void 0 ? _b : Infinity),
                 ];
-            /** 初始画布监听器 */
-            this.initListeners();
-        }
-        /**
-         * 初始画布
-         */
-        UnboundedCanvas.prototype.initCanvas = function (options) {
-            if (!this._element || !this._cacheElement)
-                return;
-            // 尺寸至少大于等于1
-            var width = Math.max(1, Math.ceil(options.width));
-            var height = Math.max(1, Math.ceil(options.height));
-            this._element.width = width * this.devicePixelRatio;
-            this._element.height = height * this.devicePixelRatio;
-            // 缓存画布
-            this._cacheElement.width = width * this.devicePixelRatio;
-            this._cacheElement.height = height * this.devicePixelRatio;
-            // 初始画布css样式
-            this._element.style.width = "".concat(width, "px");
-            this._element.style.height = "".concat(height, "px");
-            this._element.style.cursor = 'default';
         };
         /**
          * 更新画布
          */
         UnboundedCanvas.prototype.updateCanvas = function (width, height) {
-            var _a = this.getOptions(), oldCanvasCenter = _a.canvasCenter, contentCenter = _a.contentCenter;
+            if (!this._container)
+                return;
+            var _a = this._container, clientWidth = _a.clientWidth, clientHeight = _a.clientHeight;
+            var _b = this.getOptions(), oldCanvasCenter = _b.canvasCenter, contentCenter = _b.contentCenter;
             this.initCanvas({ width: width, height: height });
             this._canvasCenter = {
-                x: this._element.width / this.devicePixelRatio / 2,
-                y: this._element.height / this.devicePixelRatio / 2,
+                x: clientWidth / 2,
+                y: clientHeight / 2,
             };
             this._contentCenter = {
                 x: contentCenter.x + (this._canvasCenter.x - oldCanvasCenter.x),
@@ -402,34 +562,70 @@
             this.render();
         };
         /**
+         * 添加渲染图层
+         */
+        UnboundedCanvas.prototype.addLayer = function (handler, options) {
+            if (options === void 0) { options = {}; }
+            if (!this._container)
+                return;
+            var _a = this._container, width = _a.clientWidth, height = _a.clientHeight;
+            var _b = options.zIndex, zIndex = _b === void 0 ? 1 : _b;
+            var canvas = new Canvas(width * this.devicePixelRatio, height * this.devicePixelRatio, {
+                styles: {
+                    width: '100%',
+                    height: '100%',
+                    position: 'absolute',
+                }
+            });
+            canvas.addRender(handler);
+            var canvasList = this._container.childNodes;
+            var insertIndex = this._layers.findIndex(function (layer) { return layer.zIndex > zIndex; });
+            if (insertIndex === -1)
+                insertIndex = this._layers.length;
+            var element = canvas.getElement();
+            if (!element)
+                return;
+            this._container.insertBefore(element, canvasList[insertIndex]);
+            this._layers.splice(insertIndex, 0, { canvas: canvas, zIndex: zIndex });
+            this.render();
+            return canvas;
+        };
+        /**
          * 获取画布参数
          */
         UnboundedCanvas.prototype.getOptions = function () {
-            var _a, _b, _c, _d, _e, _f;
+            var _a, _b, _c;
+            var _d = (_a = this._container) !== null && _a !== void 0 ? _a : {
+                clientWidth: 0,
+                clientHeight: 0,
+            }, width = _d.clientWidth, height = _d.clientHeight;
             return {
-                width: (_b = (_a = this._element) === null || _a === void 0 ? void 0 : _a.width) !== null && _b !== void 0 ? _b : 0,
-                height: (_d = (_c = this._element) === null || _c === void 0 ? void 0 : _c.height) !== null && _d !== void 0 ? _d : 0,
+                width: width * this.devicePixelRatio,
+                height: height * this.devicePixelRatio,
                 devicePixelRatio: this.devicePixelRatio,
                 unitSize: this.unitSize * this.devicePixelRatio * this.zoom,
                 unitGap: this.unitGap * this.devicePixelRatio * this.zoom,
                 zoom: this.zoom,
                 zoomLimit: this.zoomLimit,
-                canvasCenter: (_e = this._canvasCenter) !== null && _e !== void 0 ? _e : __assign({}, EMPTY_COORDINATE),
-                contentCenter: (_f = this._contentCenter) !== null && _f !== void 0 ? _f : __assign({}, EMPTY_COORDINATE),
+                canvasCenter: (_b = this._canvasCenter) !== null && _b !== void 0 ? _b : __assign({}, EMPTY_COORDINATE),
+                contentCenter: (_c = this._contentCenter) !== null && _c !== void 0 ? _c : __assign({}, EMPTY_COORDINATE),
             };
+        };
+        /**
+         * 直接设置内容中心
+         */
+        UnboundedCanvas.prototype.setContentCenter = function (coord) {
+            this._contentCenter = coord;
+            this.render();
         };
         /**
          * 初始画布监听器
          */
         UnboundedCanvas.prototype.initListeners = function () {
+            if (!this._container)
+                return;
             this.movable && this.initMoveListener();
             this.zoomable && this.initZoomListener();
-        };
-        /**
-         * 取得绘制上下文
-         */
-        UnboundedCanvas.prototype.getContext = function () {
-            return this._cacheContext;
         };
         /**
          * 根据页面坐标获取单位像素坐标（相对于内容中心而不是画布中心）
@@ -503,24 +699,12 @@
          */
         UnboundedCanvas.prototype.render = function () {
             var _this = this;
-            var _render = function () {
-                var ctx = _this.getContext();
-                if (!ctx)
-                    return;
-                var _a = _this.getOptions(), width = _a.width, height = _a.height;
-                ctx.clearRect(0, 0, width, height);
-                _this._renderListeners.map(function (_a) {
-                    var handler = _a.handler, options = _a.options;
-                    return handler(options);
-                });
-                if (_this._ctx && _this._cacheElement) {
-                    _this._ctx.clearRect(0, 0, width, height);
-                    _this._ctx.drawImage(_this._cacheElement, 0, 0);
-                }
-            };
             var renderFrame = function (renderNextFrame) {
                 window.requestAnimationFrame(function () {
-                    _render();
+                    _this._layers.forEach(function (_a) {
+                        var canvas = _a.canvas;
+                        return canvas.renderAll();
+                    });
                     if (renderNextFrame)
                         renderNextFrame();
                 });
@@ -621,17 +805,17 @@
             /** 是否可拖拽移动 */
             var movable = false;
             var changeCursor = function (type) {
-                if (_this._element)
-                    _this._element.style.cursor = type;
+                if (_this._container)
+                    _this._container.style.cursor = type;
             };
             var handleReady = function (event) {
-                if (movable || !_this._element)
+                if (movable || !_this._container)
                     return;
                 movable = event.code === 'Space';
                 changeCursor('grab');
             };
             var handleStart = function (event) {
-                if (!movable || !_this._element)
+                if (!movable || !_this._container)
                     return;
                 // 不是鼠标左键点击不可拖拽
                 if (event.which !== 1)
@@ -653,7 +837,7 @@
                 _this.render();
             };
             var handleEnd = function () {
-                if (!_this._element)
+                if (!_this._container)
                     return;
                 var _a = _this.getOptions(), unitSize = _a.unitSize, contentCenter = _a.contentCenter;
                 if (_this.moveInitDistance) {
@@ -766,18 +950,11 @@
             });
         };
         /**
-         * 直接设置内容中心
-         */
-        UnboundedCanvas.prototype.setContentCenter = function (coord) {
-            this._contentCenter = coord;
-            this.render();
-        };
-        /**
          * 控制原生监听器
          */
         UnboundedCanvas.prototype.controlNaturalListener = function (type, options) {
             var eventName = options.eventName, handler = options.handler, _options = options.options, _a = options.window, isWindow = _a === void 0 ? false : _a;
-            var listenerTarget = isWindow ? window : this._element;
+            var listenerTarget = isWindow ? window : this._container;
             if (!listenerTarget)
                 return;
             var listenerIndex = this._listeners.findIndex(function (listener) {
@@ -807,31 +984,12 @@
          * 监听事件
          */
         UnboundedCanvas.prototype.on = function (eventName, handler, options) {
-            if (eventName === 'render') {
-                this._renderListeners.push({ handler: handler, options: options });
-                this._renderListeners.sort(function (a, b) {
-                    var _a, _b, _c, _d;
-                    return ((_b = (_a = a.options) === null || _a === void 0 ? void 0 : _a.zIndex) !== null && _b !== void 0 ? _b : 1) - ((_d = (_c = b.options) === null || _c === void 0 ? void 0 : _c.zIndex) !== null && _d !== void 0 ? _d : 1);
-                });
-                this.render();
-                return;
-            }
             this.controlNaturalListener('on', { eventName: eventName, handler: handler, options: options });
         };
         /**
          * 移除监听事件
          */
         UnboundedCanvas.prototype.off = function (eventName, handler, options) {
-            if (eventName === 'render') {
-                var index = this._renderListeners.findIndex(function (listeners) {
-                    return listeners.handler === handler;
-                });
-                if (index === -1)
-                    return;
-                this._renderListeners.splice(index, 1);
-                this.render();
-                return;
-            }
             this.controlNaturalListener('off', {
                 eventName: eventName,
                 handler: handler,
@@ -842,22 +1000,11 @@
          * 画布销毁
          */
         UnboundedCanvas.prototype.dispose = function () {
-            var disposeCanvas = function (canvas, size) {
-                var _a;
-                if (size === void 0) { size = {
-                    width: 1,
-                    height: 1,
-                }; }
-                canvas.width = size.width;
-                canvas.height = size.height;
-                (_a = canvas.getContext('2d')) === null || _a === void 0 ? void 0 : _a.clearRect(0, 0, canvas.width, canvas.height);
-                canvas.removeAttribute('style');
-            };
-            // 清空画布
-            if (this._cacheElement)
-                disposeCanvas(this._cacheElement);
-            if (this._element && this._stores)
-                disposeCanvas(this._element, this._stores);
+            if (!this._container || !this._store)
+                return;
+            var parentNode = this._container.parentNode;
+            if (!parentNode)
+                return;
             // 清除监听事件
             var listeners = __spreadArray([], this._listeners, true);
             while (listeners.length) {
@@ -865,8 +1012,21 @@
                 if (listener)
                     this.controlNaturalListener('off', listener);
             }
-            // 清空渲染列表
-            this._renderListeners = [];
+            // 清空图层
+            this._layers = [];
+            while (this._layers.length) {
+                var layers = this._layers.pop();
+                if (!layers)
+                    continue;
+                var canvas = layers.canvas;
+                var element = canvas.getElement();
+                canvas.dispose();
+                if (element)
+                    parentNode.removeChild(element);
+            }
+            // 还原画布
+            parentNode.insertBefore(this._store, this._container);
+            parentNode.removeChild(this._container);
             // 初始数据
             this.moveInitDistance = undefined;
             this.preRenderTime = undefined;
@@ -882,13 +1042,10 @@
                 DEFAULT_ZOOM_SETTING.max,
             ];
             // 置空数据
-            this._cacheContext = null;
-            this._cacheElement = null;
             this._canvasCenter = null;
             this._contentCenter = null;
-            this._stores = null;
-            this._ctx = null;
-            this._element = null;
+            this._store = null;
+            this._container = null;
         };
         return UnboundedCanvas;
     }());

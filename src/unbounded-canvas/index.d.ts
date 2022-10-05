@@ -48,39 +48,33 @@ export interface CanvasOptions {
    */
   height: number;
   /**
+   * 容器自定义类名
+   */
+  className: string;
+  /**
    * 画布边界
    */
-  bound?: [number, number];
+  bound: [number, number];
   /**
    * 是否可内容画布移动
    */
-  movable?: boolean;
+  movable: boolean;
   /**
    * 缩放设置
    */
-  zoom?: boolean | Partial<ZoomSetting>;
+  zoom: boolean | Partial<ZoomSetting>;
   /**
    * 像素单位设置
    */
-  unit?: UnitSetting;
+  unit: UnitSetting;
   /**
    * 忽略设备像素比例
    * @default false
    */
-  ignoreDevicePixelRatio?: boolean;
+  ignoreDevicePixelRatio: boolean;
 }
 
-/** 渲染相关 */
-export type RenderListenerOptions = {
-  /**
-   * 图层层级
-   */
-  zIndex?: number;
-};
-
 export type RenderType = "render";
-
-export type RenderListener = (options: RenderListenerOptions) => void;
 
 /** 事件相关 */
 export type NaturalListener<K extends keyof HTMLElementEventMap> = {

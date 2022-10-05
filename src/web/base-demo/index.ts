@@ -1,4 +1,4 @@
-import UnboundedCanvas from '../../index';
+import UnboundedCanvas from '../../unbounded-canvas/index.class';
 import getDrawers from '../../drawers';
 import throttle from '../../utils/throttle';
 import { loadFont } from '../../utils/load-font';

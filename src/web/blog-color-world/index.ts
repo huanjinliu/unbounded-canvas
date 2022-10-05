@@ -1,11 +1,11 @@
-import UnboundedCanvas from '../../index';
+import UnboundedCanvas from '../../unbounded-canvas/index.class';
 import getDrawers from '../../drawers';
 import throttle from '../../utils/throttle';
 import { loadFont } from '../../utils/load-font';
 import { pixelated } from './utils/pixelated';
 
 /** 格子大小 */
-const GRID_SIZE = 3;
+const GRID_SIZE = 5;
 /** 格子间隔 */
 const GRID_GAP = 1;
 /** 最小格子尺寸 */
@@ -41,11 +41,6 @@ const createBlogColorWorld = async () => {
     }
   });
 
-  const ctx = unbounedCanvas.getContext();
-  if (!ctx) return;
-
-  const drawers = getDrawers(ctx);
-  
   /**
    * 获取参数
    */
@@ -58,6 +53,7 @@ const createBlogColorWorld = async () => {
    * 绘制某坐标方块
    */
   const drawPoint = async (
+    ctx: CanvasRenderingContext2D,
     point: Point | Coordinate,
     color: string,
     center?: Coordinate,
@@ -71,7 +67,7 @@ const createBlogColorWorld = async () => {
     if (Array.isArray(point)) {
       const [x, y] = point;
 
-      await drawers
+      await getDrawers(ctx)
         .style({ fillStyle: color })
         .rect(
           _center.x * devicePixelRatio + x * size - halfSize,
@@ -83,7 +79,7 @@ const createBlogColorWorld = async () => {
     } else {
       const { x, y } = point;
 
-      await drawers
+      await getDrawers(ctx)
         .style({ fillStyle: color })
         .rect(x - halfSize, y - halfSize, unitSize, unitSize, radius);
     }
@@ -92,9 +88,7 @@ const createBlogColorWorld = async () => {
   /**
    * 监听绘制更新
    */
-  unbounedCanvas.on('render', () => {
-    const ctx = unbounedCanvas.getContext();
-    if (!ctx) return;
+  unbounedCanvas.addLayer((ctx) => {
     const { width, height, unitSize, unitGap, contentCenter } = unbounedCanvas.getOptions();
     const size = unitSize + unitGap
     const radius = getRadius();
@@ -132,13 +126,13 @@ const createBlogColorWorld = async () => {
    * 坐标参考
    */
   loadFont(FONT_CONFIGURATION, 1000)?.then(fontName => {
-    unbounedCanvas.on('render', () => {
+    unbounedCanvas.addLayer( (ctx) => {
       const { contentCenter } = unbounedCanvas.getOptions();
       const point = unbounedCanvas.viewCoords2UnitPoint(
         contentCenter.x,
         contentCenter.y,
       );
-      drawers
+      getDrawers(ctx)
         .style({
           fontSize: 12,
           fontFamily: fontName,
@@ -149,22 +143,20 @@ const createBlogColorWorld = async () => {
     })
   })
 
-  await pixelated('./assets/text.png', 3, 0)
+  await pixelated('./assets/text.png', 5, 0)
     .then(imageData => {
       if (!imageData) return;
       const { rows, cols, points } = imageData;
       // console.dir(imageData)
-      unbounedCanvas.on('render', () => {
+      unbounedCanvas.addLayer((ctx) => {
         console.time('word');
-        const ctx = unbounedCanvas.getContext();
-        if (!ctx) return;
-
         points.forEach(({ col, row, fill }) => {
           if (
             (fill.r === 255 && fill.g === 255 && fill.b === 255) ||
             fill.a === 0
           ) return;
           drawPoint(
+            ctx,
             [Math.floor(- cols / 2) + col, Math.floor(- rows / 2) + row - 10],
             `rgba(${fill.r}, ${fill.g}, ${fill.b}, ${fill.a})`
           );
