@@ -1,1 +1,1 @@
-export {};
+import './blog-color-world';

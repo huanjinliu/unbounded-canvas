@@ -5,6 +5,7 @@ declare type NeedProcessTypeStyles = {
     fontSize: number;
     fontFamily: string;
     lineDash: number[];
+    opacity: number;
     angle: number;
     scaleX: number;
     scaleY: number;

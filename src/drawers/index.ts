@@ -12,6 +12,7 @@ type NeedProcessTypeStyles = {
   fontSize: number;
   fontFamily: string;
   lineDash: number[];
+  opacity: number;
   angle: number;
   scaleX: number;
   scaleY: number;
@@ -103,7 +104,13 @@ const getDrawers = (ctx?: Context2D) => {
       switch (key) {
         case 'originX':
         case 'originY':
+        case 'scaleX':
+        case 'scaleY':
+        case 'flipX':
+        case 'flipY':
         case 'angle':
+        case 'skewX':
+        case 'skewY':
           break;
         case 'fontSize':
           ctx.font = `${value}px ${familyPart.join('')}`;
@@ -113,6 +120,9 @@ const getDrawers = (ctx?: Context2D) => {
           break;
         case 'lineDash':
           ctx.setLineDash(value as NeedProcessTypeStyles['lineDash']);
+          break;
+        case 'opacity':
+          ctx.globalAlpha = value as number;
           break;
         // @ts-ignore
         default: ctx[key] = value;

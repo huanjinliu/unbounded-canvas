@@ -1075,7 +1075,13 @@
                 switch (key) {
                     case 'originX':
                     case 'originY':
+                    case 'scaleX':
+                    case 'scaleY':
+                    case 'flipX':
+                    case 'flipY':
                     case 'angle':
+                    case 'skewX':
+                    case 'skewY':
                         break;
                     case 'fontSize':
                         ctx.font = "".concat(value, "px ").concat(familyPart.join(''));
@@ -1085,6 +1091,9 @@
                         break;
                     case 'lineDash':
                         ctx.setLineDash(value);
+                        break;
+                    case 'opacity':
+                        ctx.globalAlpha = value;
                         break;
                     // @ts-ignore
                     default: ctx[key] = value;
@@ -1909,12 +1918,103 @@
         };
     }); };
 
+    /** 获取图片数据 */
+    var getImageData = function (src) { return __awaiter(void 0, void 0, void 0, function () {
+        var image, img2Canvas, ctx, imageData;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, loadImage(src)];
+                case 1:
+                    image = _a.sent();
+                    if (!image)
+                        return [2 /*return*/, undefined];
+                    img2Canvas = document.createElement('canvas');
+                    img2Canvas.width = image.width;
+                    img2Canvas.height = image.height;
+                    ctx = img2Canvas.getContext('2d');
+                    if (!ctx)
+                        return [2 /*return*/, undefined];
+                    ctx.drawImage(image, 0, 0);
+                    imageData = ctx.getImageData(0, 0, img2Canvas.width, img2Canvas.height).data;
+                    return [2 /*return*/, {
+                            /**
+                             * 遍历像素值
+                             * ...r, g, b, a...每四个色值元素组成一个像素
+                             * @param {number} unitSize 每个单位的尺寸
+                             * @param {Function} callback 回调函数
+                             */
+                            mapPixels: function (unitSize, callback) {
+                                // 每个单位内部遍历
+                                var mapUnit = function (unitCol, unitRow) {
+                                    for (var y = 0; y < unitSize; y++) {
+                                        for (var x = 0; x < unitSize; x++) {
+                                            var row = unitRow * unitSize + y;
+                                            var col = unitCol * unitSize + x;
+                                            var ind = (row * image.width + col) * 4;
+                                            var r = imageData[ind];
+                                            var g = imageData[ind + 1];
+                                            var b = imageData[ind + 2];
+                                            var a = imageData[ind + 3];
+                                            callback({
+                                                x: col,
+                                                y: row,
+                                                rgba: { r: r, g: g, b: b, a: a },
+                                                unit: unitSize > 1 ? { x: x, y: y } : undefined,
+                                            });
+                                        }
+                                    }
+                                };
+                                for (var y = 0; y < Math.floor(image.height / unitSize); y++) {
+                                    for (var x = 0; x < Math.floor(image.width / unitSize); x++) {
+                                        mapUnit(x, y);
+                                    }
+                                }
+                            },
+                            width: image.width,
+                            height: image.height,
+                        }];
+            }
+        });
+    }); };
+
+    var pixelated = function (src, size, gap) { return __awaiter(void 0, void 0, void 0, function () {
+        var imageData, width, height, mapPixels, points;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, getImageData(src)];
+                case 1:
+                    imageData = _a.sent();
+                    if (imageData === undefined)
+                        return [2 /*return*/];
+                    width = imageData.width, height = imageData.height, mapPixels = imageData.mapPixels;
+                    points = [];
+                    // 模糊像素遍历
+                    mapPixels(size + gap, function (_a) {
+                        var x = _a.x, y = _a.y, rgba = _a.rgba, unit = _a.unit;
+                        var halfSize = Math.floor(size / 2);
+                        if (!unit || (unit && unit.x === halfSize && unit.y === halfSize)) {
+                            points.push({
+                                col: Math.floor(x / size),
+                                row: Math.floor(y / size),
+                                fill: rgba,
+                            });
+                        }
+                    });
+                    return [2 /*return*/, {
+                            cols: Math.floor(width / size),
+                            rows: Math.floor(height / size),
+                            points: points,
+                        }];
+            }
+        });
+    }); };
+
     /** 格子大小 */
-    var GRID_SIZE = 15;
+    var GRID_SIZE = 3;
     /** 格子间隔 */
-    var GRID_GAP = 2;
+    var GRID_GAP = 1;
     /** 最小格子尺寸 */
-    var GRID_MIN_SIZE = 5;
+    var GRID_MIN_SIZE = 3;
     /** 最大格子尺寸 */
     var GRID_MAX_SIZE = 500;
     /** 字体配置 */
@@ -1922,166 +2022,162 @@
         name: 'Century Gothic-Bold',
         url: 'https://storage.sunzi.cool/font/965b7d59-bad0-466b-9703-a20672e27bc7.ttf'
     };
-    var createCanvas = function () { return __awaiter(void 0, void 0, void 0, function () {
-        var _canvas, _a, width, height, unbounedCanvas, ctx, drawers, getRadius, drawDashLine, drawPoint;
+    var createBlogColorWorld = function () { return __awaiter(void 0, void 0, void 0, function () {
+        var _canvas, _a, width, height, unbounedCanvas, ctx, drawers, getRadius, drawPoint;
         var _b;
         return __generator(this, function (_c) {
-            _canvas = document.querySelector('#_canvas');
-            if (!_canvas)
-                return [2 /*return*/];
-            _a = [
-                document.body.clientWidth,
-                document.body.clientHeight,
-            ], width = _a[0], height = _a[1];
-            unbounedCanvas = new UnboundedCanvas(_canvas, {
-                width: width,
-                height: height,
-                unit: {
-                    size: GRID_SIZE,
-                    gap: GRID_GAP,
-                    // sticky: true,
-                },
-                zoom: {
-                    min: GRID_MIN_SIZE / GRID_SIZE,
-                    max: GRID_MAX_SIZE / GRID_SIZE,
-                }
-            });
-            ctx = unbounedCanvas.getContext();
-            if (!ctx)
-                return [2 /*return*/];
-            drawers = getDrawers(ctx);
-            getRadius = function () {
-                var _a = unbounedCanvas.getOptions(), devicePixelRatio = _a.devicePixelRatio, zoom = _a.zoom;
-                return 1 * devicePixelRatio * zoom;
-            };
-            drawDashLine = drawers
-                .style({
-                strokeStyle: 'red',
-                lineWidth: 1,
-                lineCap: 'round',
-                lineDash: [5, 5],
-            })
-                .line;
-            drawPoint = function (point, color, center) { return __awaiter(void 0, void 0, void 0, function () {
-                var _a, devicePixelRatio, unitSize, unitGap, radius, size, halfSize, x, y, x, y;
-                return __generator(this, function (_b) {
-                    switch (_b.label) {
-                        case 0:
-                            _a = unbounedCanvas.getOptions(), devicePixelRatio = _a.devicePixelRatio, unitSize = _a.unitSize, unitGap = _a.unitGap;
-                            radius = getRadius();
-                            size = unitSize + unitGap;
-                            halfSize = unitSize / 2;
-                            if (!Array.isArray(point)) return [3 /*break*/, 2];
-                            x = point[0], y = point[1];
-                            return [4 /*yield*/, drawers
-                                    .style({ fillStyle: color })
-                                    .rect(center.x * devicePixelRatio + x * size - halfSize, center.y * devicePixelRatio + y * size - halfSize, unitSize, unitSize, radius)];
-                        case 1:
-                            _b.sent();
-                            return [3 /*break*/, 4];
-                        case 2:
-                            x = point.x, y = point.y;
-                            return [4 /*yield*/, drawers
-                                    .style({ fillStyle: color })
-                                    .rect(x - halfSize, y - halfSize, unitSize, unitSize, radius)];
-                        case 3:
-                            _b.sent();
-                            _b.label = 4;
-                        case 4: return [2 /*return*/];
-                    }
-                });
-            }); };
-            /**
-             * 监听绘制更新
-             */
-            unbounedCanvas.on('render', function () {
-                var ctx = unbounedCanvas.getContext();
-                if (!ctx)
-                    return;
-                var _a = unbounedCanvas.getOptions(), width = _a.width, height = _a.height, unitSize = _a.unitSize, unitGap = _a.unitGap, contentCenter = _a.contentCenter; _a.devicePixelRatio; _a.zoom;
-                var size = unitSize + unitGap;
-                var radius = getRadius();
-                var r = radius > 3 ? radius : 0;
-                var unitFirstPoint = unbounedCanvas.getUnitFirstPoint(contentCenter);
-                var drawRadiusRectPath = function (left, top) {
-                    ctx.moveTo(left + r, top);
-                    ctx.lineTo(left + unitSize - r, top);
-                    r && ctx.arcTo(left + unitSize, top, left + unitSize, top + r, radius);
-                    ctx.lineTo(left + unitSize, top + unitSize - r);
-                    r && ctx.arcTo(left + unitSize, top + unitSize, left + unitSize - r, top + unitSize, radius);
-                    ctx.lineTo(left + r, top + unitSize);
-                    r && ctx.arcTo(left, top + unitSize, left, top + unitSize - r, radius);
-                    ctx.lineTo(left, top + r);
-                    r && ctx.arcTo(left, top, left + r, top, radius);
-                    ctx.lineTo(left, top + r);
-                };
-                // 绘制矩形格子
-                ctx.save();
-                ctx.fillStyle = '#f2f2f2';
-                ctx.beginPath();
-                for (var y = unitFirstPoint.y; y < height + size; y += size) {
-                    for (var x = unitFirstPoint.x; x < width + size; x += size) {
-                        drawRadiusRectPath(x, y);
-                    }
-                }
-                ctx.closePath();
-                ctx.fill();
-                ctx.restore();
-                // 绘制中心点用于参考
-                drawPoint([0, 0], 'pink', contentCenter);
-            });
-            /**
-             * 监听绘制更新
-             */
-            unbounedCanvas.on('render', function () {
-                var _a = unbounedCanvas.getOptions(), width = _a.width, height = _a.height;
-                // 绘制中心线条用于参考
-                drawDashLine([width / 2, 0], [width / 2, height]);
-                drawDashLine([0, height / 2], [width, height / 2]);
-            }, { zIndex: 999999 });
-            loadImage('./assets/test.png').then(function (image) {
-                unbounedCanvas.on('render', function () {
-                    var _a = unbounedCanvas.getOptions(), width = _a.width, height = _a.height, zoom = _a.zoom;
-                    drawers
-                        .style({
-                        angle: 45,
-                        originX: 'center',
-                        originY: 'center',
-                        scaleX: zoom,
-                        scaleY: zoom,
-                        flipX: true,
-                        flipY: true,
-                        skewX: 0,
-                        skewY: 0,
-                    })
-                        .image(image, width / 2, height / 2);
-                });
-            });
-            (_b = loadFont(FONT_CONFIGURATION, 1000)) === null || _b === void 0 ? void 0 : _b.then(function (fontName) {
-                unbounedCanvas.on('render', function () {
-                    var contentCenter = unbounedCanvas.getOptions().contentCenter;
-                    var point = unbounedCanvas.viewCoords2UnitPoint(contentCenter.x, contentCenter.y);
-                    drawers
-                        .style({
-                        fontSize: 20,
-                        fontFamily: fontName,
-                    })
-                        .text("(x: ".concat(point[0], ", y: ").concat(point[1], ")"), 20, 20);
-                });
-            });
-            window.addEventListener('resize', throttle(function () {
-                unbounedCanvas.updateCanvas(document.body.clientWidth, document.body.clientHeight);
-            }, 50));
-            return [2 /*return*/, unbounedCanvas];
+            switch (_c.label) {
+                case 0:
+                    _canvas = document.querySelector('#_canvas');
+                    if (!_canvas)
+                        return [2 /*return*/];
+                    _a = [
+                        document.body.clientWidth,
+                        document.body.clientHeight,
+                    ], width = _a[0], height = _a[1];
+                    unbounedCanvas = new UnboundedCanvas(_canvas, {
+                        width: width,
+                        height: height,
+                        unit: {
+                            size: GRID_SIZE,
+                            gap: GRID_GAP,
+                            // sticky: true,
+                        },
+                        zoom: {
+                            min: GRID_MIN_SIZE / GRID_SIZE,
+                            max: GRID_MAX_SIZE / GRID_SIZE,
+                        }
+                    });
+                    ctx = unbounedCanvas.getContext();
+                    if (!ctx)
+                        return [2 /*return*/];
+                    drawers = getDrawers(ctx);
+                    getRadius = function () {
+                        var _a = unbounedCanvas.getOptions(), devicePixelRatio = _a.devicePixelRatio, zoom = _a.zoom;
+                        return 1 * devicePixelRatio * zoom;
+                    };
+                    drawPoint = function (point, color, center) { return __awaiter(void 0, void 0, void 0, function () {
+                        var _a, devicePixelRatio, unitSize, unitGap, contentCenter, radius, size, halfSize, _center, x, y, x, y;
+                        return __generator(this, function (_b) {
+                            switch (_b.label) {
+                                case 0:
+                                    _a = unbounedCanvas.getOptions(), devicePixelRatio = _a.devicePixelRatio, unitSize = _a.unitSize, unitGap = _a.unitGap, contentCenter = _a.contentCenter;
+                                    radius = getRadius();
+                                    size = unitSize + unitGap;
+                                    halfSize = unitSize / 2;
+                                    _center = center !== null && center !== void 0 ? center : contentCenter;
+                                    if (!Array.isArray(point)) return [3 /*break*/, 2];
+                                    x = point[0], y = point[1];
+                                    return [4 /*yield*/, drawers
+                                            .style({ fillStyle: color })
+                                            .rect(_center.x * devicePixelRatio + x * size - halfSize, _center.y * devicePixelRatio + y * size - halfSize, unitSize, unitSize, radius)];
+                                case 1:
+                                    _b.sent();
+                                    return [3 /*break*/, 4];
+                                case 2:
+                                    x = point.x, y = point.y;
+                                    return [4 /*yield*/, drawers
+                                            .style({ fillStyle: color })
+                                            .rect(x - halfSize, y - halfSize, unitSize, unitSize, radius)];
+                                case 3:
+                                    _b.sent();
+                                    _b.label = 4;
+                                case 4: return [2 /*return*/];
+                            }
+                        });
+                    }); };
+                    /**
+                     * 监听绘制更新
+                     */
+                    unbounedCanvas.on('render', function () {
+                        var ctx = unbounedCanvas.getContext();
+                        if (!ctx)
+                            return;
+                        var _a = unbounedCanvas.getOptions(), width = _a.width, height = _a.height, unitSize = _a.unitSize, unitGap = _a.unitGap, contentCenter = _a.contentCenter;
+                        var size = unitSize + unitGap;
+                        var radius = getRadius();
+                        var r = radius > 3 ? radius : 0;
+                        var unitFirstPoint = unbounedCanvas.getUnitFirstPoint(contentCenter);
+                        var drawRadiusRectPath = function (left, top) {
+                            ctx.moveTo(left + r, top);
+                            ctx.lineTo(left + unitSize - r, top);
+                            r && ctx.arcTo(left + unitSize, top, left + unitSize, top + r, radius);
+                            ctx.lineTo(left + unitSize, top + unitSize - r);
+                            r && ctx.arcTo(left + unitSize, top + unitSize, left + unitSize - r, top + unitSize, radius);
+                            ctx.lineTo(left + r, top + unitSize);
+                            r && ctx.arcTo(left, top + unitSize, left, top + unitSize - r, radius);
+                            ctx.lineTo(left, top + r);
+                            r && ctx.arcTo(left, top, left + r, top, radius);
+                            ctx.lineTo(left, top + r);
+                        };
+                        // 绘制矩形格子
+                        ctx.save();
+                        ctx.fillStyle = '#f2f2f2';
+                        ctx.beginPath();
+                        for (var y = unitFirstPoint.y; y < height + size; y += size) {
+                            for (var x = unitFirstPoint.x; x < width + size; x += size) {
+                                drawRadiusRectPath(x, y);
+                            }
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.restore();
+                    });
+                    /**
+                     * 坐标参考
+                     */
+                    (_b = loadFont(FONT_CONFIGURATION, 1000)) === null || _b === void 0 ? void 0 : _b.then(function (fontName) {
+                        unbounedCanvas.on('render', function () {
+                            var contentCenter = unbounedCanvas.getOptions().contentCenter;
+                            var point = unbounedCanvas.viewCoords2UnitPoint(contentCenter.x, contentCenter.y);
+                            drawers
+                                .style({
+                                fontSize: 12,
+                                fontFamily: fontName,
+                                opacity: 0.6,
+                                fillStyle: 'RED',
+                            })
+                                .text("(x: ".concat(point[0], ", y: ").concat(point[1], ")"), 10, 10);
+                        });
+                    });
+                    return [4 /*yield*/, pixelated('./assets/text.png', 3, 0)
+                            .then(function (imageData) {
+                            if (!imageData)
+                                return;
+                            var rows = imageData.rows, cols = imageData.cols, points = imageData.points;
+                            // console.dir(imageData)
+                            unbounedCanvas.on('render', function () {
+                                console.time('word');
+                                var ctx = unbounedCanvas.getContext();
+                                if (!ctx)
+                                    return;
+                                points.forEach(function (_a) {
+                                    var col = _a.col, row = _a.row, fill = _a.fill;
+                                    if ((fill.r === 255 && fill.g === 255 && fill.b === 255) ||
+                                        fill.a === 0)
+                                        return;
+                                    drawPoint([Math.floor(-cols / 2) + col, Math.floor(-rows / 2) + row - 10], "rgba(".concat(fill.r, ", ").concat(fill.g, ", ").concat(fill.b, ", ").concat(fill.a, ")"));
+                                });
+                                console.timeEnd('word');
+                            });
+                        })
+                        /**
+                         * 浏览器尺寸变化事件监听
+                         */
+                    ];
+                case 1:
+                    _c.sent();
+                    /**
+                     * 浏览器尺寸变化事件监听
+                     */
+                    window.addEventListener('resize', throttle(function () {
+                        unbounedCanvas.updateCanvas(document.body.clientWidth, document.body.clientHeight);
+                    }, 50));
+                    return [2 /*return*/];
+            }
         });
     }); };
-    createCanvas().then(function (canvas) {
-        var button = document.querySelector('#back_center');
-        if (button)
-            button.addEventListener('click', function () {
-                canvas === null || canvas === void 0 ? void 0 : canvas.focus([0, 0]);
-            });
-    });
+    createBlogColorWorld();
 
 })();
 //# sourceMappingURL=index.js.map
