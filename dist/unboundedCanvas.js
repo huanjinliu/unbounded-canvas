@@ -827,6 +827,17 @@
                 };
                 changeCursor('grabbing');
             };
+            var handleQuicklyMove = function (event) {
+                event.preventDefault();
+                if (!_this._container)
+                    return;
+                var contentCenter = _this.getOptions().contentCenter;
+                _this.moveInitDistance = {
+                    x: event.offsetX - contentCenter.x,
+                    y: event.offsetY - contentCenter.y,
+                };
+                changeCursor('grabbing');
+            };
             var handleMoving = function (event) {
                 if (_this.moveInitDistance === undefined)
                     return;
@@ -855,6 +866,10 @@
                 _this.moveInitDistance = undefined;
                 changeCursor('default');
             };
+            this.controlNaturalListener('on', {
+                eventName: 'contextmenu',
+                handler: handleQuicklyMove,
+            });
             this.controlNaturalListener('on', {
                 eventName: 'keydown',
                 handler: handleReady,

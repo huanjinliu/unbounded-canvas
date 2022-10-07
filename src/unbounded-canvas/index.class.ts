@@ -543,6 +543,16 @@ class UnboundedCanvas {
 
       changeCursor('grabbing');
     };
+    const handleQuicklyMove = (event: MouseEvent) => {
+      event.preventDefault();
+      if (!this._container) return;
+      const { contentCenter } = this.getOptions();
+      this.moveInitDistance = {
+        x: event.offsetX - contentCenter.x,
+        y: event.offsetY - contentCenter.y,
+      };
+      changeCursor('grabbing');
+    };
     const handleMoving = (event: MouseEvent) => {
       if (this.moveInitDistance === undefined) return;
 
@@ -573,6 +583,10 @@ class UnboundedCanvas {
       this.moveInitDistance = undefined;
       changeCursor('default');
     };
+    this.controlNaturalListener('on', {
+      eventName: 'contextmenu',
+      handler: handleQuicklyMove,
+    })
     this.controlNaturalListener('on', {
       eventName: 'keydown',
       handler: handleReady,
