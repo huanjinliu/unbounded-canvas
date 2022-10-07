@@ -33,7 +33,8 @@
   "module": "dist/unboundedCanvas.esm.js",
   "dependencies": {
     "fontfaceobserver": "^2.3.0",
+    "greenlet": "^1.1.0",
     "uuid": "^9.0.0",
-    "vivid-wait": "^1.0.6"
+    "vivid-wait": "1.1.1"
   }
 }

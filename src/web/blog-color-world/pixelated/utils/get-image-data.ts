@@ -1,4 +1,4 @@
-import loadImage from "../../../utils/load-image";
+import loadImage from "./load-image";
 import type { RGBA } from "./is-same-rgba";
 
 type Pixel = {
@@ -25,7 +25,28 @@ const getImageData = async (src: string) => {
 
   ctx.drawImage(image, 0, 0);
   const { data: imageData } = ctx.getImageData(0, 0, img2Canvas.width, img2Canvas.height);
+  const getPixelColor = (row: number, col: number) => {
+    const ind = (row * image.width + col) * 4;
+    const r = imageData[ind];
+    const g = imageData[ind + 1];
+    const b = imageData[ind + 2];
+    const a = imageData[ind + 3] / 255;
+    return { r, g, b, a };
+  };
+  const getRangePixel = (startRow: number, startCol: number, endRow: number, endCol: number) => {
+    const range: RGBA[][] = [];
+    if (endCol < startCol || endRow < endRow) return range; 
+    for (let y = startCol; y < endCol; y++) {
+      range[endCol - startCol] = [];
+      for (let x = startRow; x < endRow; x++) {
+        range[endCol - startCol].push(getPixelColor(x, y));
+      }
+    }
+    return range;
+  };
   return {
+    getPixelColor,
+    getRangePixel,
     /**
      * 遍历像素值
      * ...r, g, b, a...每四个色值元素组成一个像素
@@ -39,16 +60,12 @@ const getImageData = async (src: string) => {
           for (let x = 0; x < unitSize; x++) {
             const row = unitRow * unitSize + y;
             const col = unitCol * unitSize + x;
-            const ind = (row * image.width + col) * 4;
-            const r = imageData[ind];
-            const g = imageData[ind + 1];
-            const b = imageData[ind + 2];
-            const a = imageData[ind + 3];
+
             callback({
               x: col,
               y: row,
-              rgba: { r, g, b, a },
-              unit: unitSize > 1 ? { x, y } : undefined,
+              rgba: getPixelColor(row, col),
+              unit: unitSize > 0 ? { x, y } : undefined,
             })
           }
         }

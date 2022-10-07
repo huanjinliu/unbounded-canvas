@@ -10,6 +10,13 @@ declare type Pixel = {
 };
 /** 获取图片数据 */
 declare const getImageData: (src: string) => Promise<{
+    getPixelColor: (row: number, col: number) => {
+        r: number;
+        g: number;
+        b: number;
+        a: number;
+    };
+    getRangePixel: (startRow: number, startCol: number, endRow: number, endCol: number) => RGBA[][];
     /**
      * 遍历像素值
      * ...r, g, b, a...每四个色值元素组成一个像素

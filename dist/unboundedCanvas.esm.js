@@ -255,20 +255,27 @@ function e(n = 0, e, t) {
         u = "random" === e ? a[i[Math.floor(Math.random() * i.length)]] : null !== (o = a[e]) && void 0 !== o ? o : a.random;
   return new Promise(e => {
     let o = new Date().getTime(),
-        a = 0;
+        a = 0,
+        i = !1;
 
-    const i = () => {
+    const l = () => {
       !function (n) {
         if ("undefined" != typeof window) return window.requestAnimationFrame(n);
         const e = setTimeout(() => {
           n(e), clearTimeout(e);
         }, 16.6);
       }(() => {
-        a = new Date().getTime() - o, r = u(a), a >= n ? (null == t || t(1), e(a)) : (null == t || t(r), i());
+        if (a = new Date().getTime() - o, r = u(a), a >= n) null == t || t(1), e(a);else {
+          const n = () => {
+            i = !0;
+          };
+
+          null == t || t(r, n), i ? e(a) : l();
+        }
       });
     };
 
-    i();
+    l();
   });
 }
 
@@ -281,8 +288,8 @@ function t(t, o = {}) {
     } = o;
     let i = r ? .99 : 1;
     const u = r ? r() : Promise.resolve(),
-          l = yield e(t, n, n => {
-      null == a || a(Math.round(n * i * 1e4) / 1e4);
+          l = yield e(t, n, (n, e) => {
+      null == a || a(Math.round(n * i * 1e4) / 1e4, e);
     }),
           [c] = yield Promise.all([u, l]);
     return r && (null == a || a(1)), c;
@@ -549,10 +556,6 @@ var UnboundedCanvas = /** @class */ (function () {
             DEFAULT_ZOOM_SETTING.max,
         ];
         /**
-         * 是否正在聚焦
-         */
-        this.isFocuing = false;
-        /**
          * 渲染图层
          */
         this._layers = [];
@@ -732,6 +735,25 @@ var UnboundedCanvas = /** @class */ (function () {
             var name = _a.name;
             return name === key;
         })) === null || _a === void 0 ? void 0 : _a.canvas;
+    };
+    /**
+     * 移除图层画布
+     */
+    UnboundedCanvas.prototype.removeLayer = function (target) {
+        var _a;
+        var index = this._layers.findIndex(function (_a) {
+            var name = _a.name, canvas = _a.canvas;
+            return typeof target === 'string'
+                ? name === target
+                : canvas === target;
+        });
+        if (index === -1)
+            return;
+        var canvas = this._layers[index].canvas;
+        var canvasNode = canvas.getElement();
+        canvas.dispose();
+        (_a = canvasNode === null || canvasNode === void 0 ? void 0 : canvasNode.parentNode) === null || _a === void 0 ? void 0 : _a.removeChild(canvasNode);
+        this._layers.splice(index, 1);
     };
     /**
      * 获取画布参数
@@ -1048,9 +1070,14 @@ var UnboundedCanvas = /** @class */ (function () {
         this.controlNaturalListener('on', {
             eventName: 'wheel',
             handler: function (event) {
-                if (_this.moveInitDistance || _this.isFocuing)
+                var _a, _b;
+                if (_this.moveInitDistance)
                     return;
-                var _a = _this.getOptions(), canvasCenter = _a.canvasCenter, contentCenter = _a.contentCenter;
+                if (_this.currentFocusing) {
+                    (_b = (_a = _this.currentFocusing).cancel) === null || _b === void 0 ? void 0 : _b.call(_a);
+                    _this.currentFocusing = undefined;
+                }
+                var _c = _this.getOptions(), canvasCenter = _c.canvasCenter, contentCenter = _c.contentCenter;
                 var offsetX = event.offsetX, offsetY = event.offsetY, deltaY = event.deltaY;
                 var dZoom = Math.pow(0.999, (deltaY / 2));
                 var newZoom = Math.min(Math.max(_this.zoom * dZoom, _this.zoomLimit[0]), _this.zoomLimit[1]);
@@ -1066,17 +1093,22 @@ var UnboundedCanvas = /** @class */ (function () {
      * 聚焦到某个特定坐标点，坐标点相对于内容画布
      */
     UnboundedCanvas.prototype.focus = function (point, options) {
+        var _a, _b;
         if (options === void 0) { options = {}; }
         return __awaiter(this, void 0, void 0, function () {
-            var _a, speedMode, duration, _b, unitSize, unitGap, canvasCenter, contentCenter, pointCoord, oldContentCoords, distanceContentCenter, maxDistance, distanceGridLength, time;
+            var _c, speedMode, duration, _d, unitSize, unitGap, canvasCenter, contentCenter, pointCoord, oldContentCoords, distanceContentCenter, maxDistance, distanceGridLength, time;
             var _this = this;
-            return __generator(this, function (_c) {
-                switch (_c.label) {
+            return __generator(this, function (_e) {
+                switch (_e.label) {
                     case 0:
                         if (!this.movable)
                             return [2 /*return*/];
-                        _a = options.speedMode, speedMode = _a === void 0 ? 'ease-in-out' : _a, duration = options.duration;
-                        _b = this.getOptions(), unitSize = _b.unitSize, unitGap = _b.unitGap, canvasCenter = _b.canvasCenter, contentCenter = _b.contentCenter;
+                        if (this.currentFocusing) {
+                            (_b = (_a = this.currentFocusing).cancel) === null || _b === void 0 ? void 0 : _b.call(_a);
+                            this.currentFocusing = undefined;
+                        }
+                        _c = options.speedMode, speedMode = _c === void 0 ? 'ease-in-out' : _c, duration = options.duration;
+                        _d = this.getOptions(), unitSize = _d.unitSize, unitGap = _d.unitGap, canvasCenter = _d.canvasCenter, contentCenter = _d.contentCenter;
                         pointCoord = this.unitPoint2ViewCoords.apply(this, __spreadArray(__spreadArray([], point, false), [canvasCenter], false));
                         oldContentCoords = __assign({}, contentCenter);
                         distanceContentCenter = {
@@ -1086,22 +1118,22 @@ var UnboundedCanvas = /** @class */ (function () {
                         maxDistance = Math.max(Math.abs(distanceContentCenter.x), Math.abs(distanceContentCenter.y));
                         distanceGridLength = Math.ceil(maxDistance * this.devicePixelRatio / (unitSize + unitGap));
                         time = duration !== null && duration !== void 0 ? duration : Math.max(Math.min(distanceGridLength * 50, 2000), 300);
-                        this.isFocuing = true;
                         // 在指定时间内通过特定过渡方式变成指定值
                         return [4 /*yield*/, t(time, {
                                 mode: speedMode,
-                                onUpdate: function (percent) {
+                                onUpdate: function (percent, cancel) {
                                     _this._contentCenter = {
                                         x: oldContentCoords.x + distanceContentCenter.x * percent,
                                         y: oldContentCoords.y + distanceContentCenter.y * percent,
                                     };
                                     _this.render();
+                                    _this.currentFocusing = { percent: percent, cancel: cancel };
                                 }
                             })];
                     case 1:
                         // 在指定时间内通过特定过渡方式变成指定值
-                        _c.sent();
-                        this.isFocuing = false;
+                        _e.sent();
+                        this.currentFocusing = undefined;
                         return [2 /*return*/];
                 }
             });

@@ -111,7 +111,10 @@ class UnboundedCanvas {
   /**
    * 是否正在聚焦
    */
-  private isFocuing: boolean = false;
+  private currentFocusing: {
+    percent: number;
+    cancel?: () => void;
+  } | undefined;
 
   /**
    * 渲染图层
@@ -340,6 +343,24 @@ class UnboundedCanvas {
    */
   getLayer (key: string) {
     return this._layers.find(({ name }) => name === key)?.canvas;
+  }
+
+  /**
+   * 移除图层画布
+   */
+  removeLayer (target: string | Canvas2d | CanvasWebGL) {
+    const index = this._layers.findIndex(({ name, canvas }) =>
+      typeof target === 'string'
+        ? name === target
+        : canvas === target
+    );
+    if (index === -1) return;
+
+    const canvas = this._layers[index].canvas;
+    const canvasNode = canvas.getElement();
+    canvas.dispose();
+    canvasNode?.parentNode?.removeChild(canvasNode);
+    this._layers.splice(index, 1);
   }
 
   /**
@@ -670,7 +691,11 @@ class UnboundedCanvas {
     this.controlNaturalListener('on', {
       eventName: 'wheel',
       handler: (event) => {
-        if (this.moveInitDistance || this.isFocuing) return;
+        if (this.moveInitDistance) return;
+        if (this.currentFocusing) {
+          this.currentFocusing.cancel?.();
+          this.currentFocusing = undefined;
+        }
         const { canvasCenter, contentCenter } = this.getOptions(); 
         const { offsetX, offsetY, deltaY } = event;
         const dZoom = 0.999 ** (deltaY / 2);
@@ -699,6 +724,10 @@ class UnboundedCanvas {
     duration: number, 
   }> = {}) {
     if (!this.movable) return;
+    if (this.currentFocusing) {
+      this.currentFocusing.cancel?.();
+      this.currentFocusing = undefined;
+    }
 
     const { speedMode = 'ease-in-out', duration } = options;
     const { unitSize, unitGap, canvasCenter, contentCenter } = this.getOptions();
@@ -712,19 +741,19 @@ class UnboundedCanvas {
     const distanceGridLength = Math.ceil(maxDistance * this.devicePixelRatio / (unitSize + unitGap));
     let time = duration ?? Math.max(Math.min(distanceGridLength * 50, 2000), 300);
 
-    this.isFocuing = true;
     // 在指定时间内通过特定过渡方式变成指定值
     await wait(time, {
       mode: speedMode,
-      onUpdate: percent => {
+      onUpdate: (percent, cancel) => {
         this._contentCenter = {
           x: oldContentCoords.x + distanceContentCenter.x * percent,
           y: oldContentCoords.y + distanceContentCenter.y * percent,
         };
         this.render();
+        this.currentFocusing = { percent, cancel };
       }
     })
-    this.isFocuing = false;
+    this.currentFocusing = undefined;
   }
 
   /**

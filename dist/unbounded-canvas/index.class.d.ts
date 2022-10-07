@@ -74,7 +74,7 @@ declare class UnboundedCanvas {
     /**
      * 是否正在聚焦
      */
-    private isFocuing;
+    private currentFocusing;
     /**
      * 渲染图层
      */
@@ -116,6 +116,10 @@ declare class UnboundedCanvas {
      * 获取图层画布
      */
     getLayer(key: string): Canvas2d | CanvasWebGL | undefined;
+    /**
+     * 移除图层画布
+     */
+    removeLayer(target: string | Canvas2d | CanvasWebGL): void;
     /**
      * 获取画布参数
      */

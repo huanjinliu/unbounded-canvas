@@ -260,20 +260,27 @@
             u = "random" === e ? a[i[Math.floor(Math.random() * i.length)]] : null !== (o = a[e]) && void 0 !== o ? o : a.random;
       return new Promise(e => {
         let o = new Date().getTime(),
-            a = 0;
+            a = 0,
+            i = !1;
 
-        const i = () => {
+        const l = () => {
           !function (n) {
             if ("undefined" != typeof window) return window.requestAnimationFrame(n);
             const e = setTimeout(() => {
               n(e), clearTimeout(e);
             }, 16.6);
           }(() => {
-            a = new Date().getTime() - o, r = u(a), a >= n ? (null == t || t(1), e(a)) : (null == t || t(r), i());
+            if (a = new Date().getTime() - o, r = u(a), a >= n) null == t || t(1), e(a);else {
+              const n = () => {
+                i = !0;
+              };
+
+              null == t || t(r, n), i ? e(a) : l();
+            }
           });
         };
 
-        i();
+        l();
       });
     }
 
@@ -286,8 +293,8 @@
         } = o;
         let i = r ? .99 : 1;
         const u = r ? r() : Promise.resolve(),
-              l = yield e(t, n, n => {
-          null == a || a(Math.round(n * i * 1e4) / 1e4);
+              l = yield e(t, n, (n, e) => {
+          null == a || a(Math.round(n * i * 1e4) / 1e4, e);
         }),
               [c] = yield Promise.all([u, l]);
         return r && (null == a || a(1)), c;
@@ -554,10 +561,6 @@
                 DEFAULT_ZOOM_SETTING.max,
             ];
             /**
-             * 是否正在聚焦
-             */
-            this.isFocuing = false;
-            /**
              * 渲染图层
              */
             this._layers = [];
@@ -737,6 +740,25 @@
                 var name = _a.name;
                 return name === key;
             })) === null || _a === void 0 ? void 0 : _a.canvas;
+        };
+        /**
+         * 移除图层画布
+         */
+        UnboundedCanvas.prototype.removeLayer = function (target) {
+            var _a;
+            var index = this._layers.findIndex(function (_a) {
+                var name = _a.name, canvas = _a.canvas;
+                return typeof target === 'string'
+                    ? name === target
+                    : canvas === target;
+            });
+            if (index === -1)
+                return;
+            var canvas = this._layers[index].canvas;
+            var canvasNode = canvas.getElement();
+            canvas.dispose();
+            (_a = canvasNode === null || canvasNode === void 0 ? void 0 : canvasNode.parentNode) === null || _a === void 0 ? void 0 : _a.removeChild(canvasNode);
+            this._layers.splice(index, 1);
         };
         /**
          * 获取画布参数
@@ -1053,9 +1075,14 @@
             this.controlNaturalListener('on', {
                 eventName: 'wheel',
                 handler: function (event) {
-                    if (_this.moveInitDistance || _this.isFocuing)
+                    var _a, _b;
+                    if (_this.moveInitDistance)
                         return;
-                    var _a = _this.getOptions(), canvasCenter = _a.canvasCenter, contentCenter = _a.contentCenter;
+                    if (_this.currentFocusing) {
+                        (_b = (_a = _this.currentFocusing).cancel) === null || _b === void 0 ? void 0 : _b.call(_a);
+                        _this.currentFocusing = undefined;
+                    }
+                    var _c = _this.getOptions(), canvasCenter = _c.canvasCenter, contentCenter = _c.contentCenter;
                     var offsetX = event.offsetX, offsetY = event.offsetY, deltaY = event.deltaY;
                     var dZoom = Math.pow(0.999, (deltaY / 2));
                     var newZoom = Math.min(Math.max(_this.zoom * dZoom, _this.zoomLimit[0]), _this.zoomLimit[1]);
@@ -1071,17 +1098,22 @@
          * 聚焦到某个特定坐标点，坐标点相对于内容画布
          */
         UnboundedCanvas.prototype.focus = function (point, options) {
+            var _a, _b;
             if (options === void 0) { options = {}; }
             return __awaiter(this, void 0, void 0, function () {
-                var _a, speedMode, duration, _b, unitSize, unitGap, canvasCenter, contentCenter, pointCoord, oldContentCoords, distanceContentCenter, maxDistance, distanceGridLength, time;
+                var _c, speedMode, duration, _d, unitSize, unitGap, canvasCenter, contentCenter, pointCoord, oldContentCoords, distanceContentCenter, maxDistance, distanceGridLength, time;
                 var _this = this;
-                return __generator(this, function (_c) {
-                    switch (_c.label) {
+                return __generator(this, function (_e) {
+                    switch (_e.label) {
                         case 0:
                             if (!this.movable)
                                 return [2 /*return*/];
-                            _a = options.speedMode, speedMode = _a === void 0 ? 'ease-in-out' : _a, duration = options.duration;
-                            _b = this.getOptions(), unitSize = _b.unitSize, unitGap = _b.unitGap, canvasCenter = _b.canvasCenter, contentCenter = _b.contentCenter;
+                            if (this.currentFocusing) {
+                                (_b = (_a = this.currentFocusing).cancel) === null || _b === void 0 ? void 0 : _b.call(_a);
+                                this.currentFocusing = undefined;
+                            }
+                            _c = options.speedMode, speedMode = _c === void 0 ? 'ease-in-out' : _c, duration = options.duration;
+                            _d = this.getOptions(), unitSize = _d.unitSize, unitGap = _d.unitGap, canvasCenter = _d.canvasCenter, contentCenter = _d.contentCenter;
                             pointCoord = this.unitPoint2ViewCoords.apply(this, __spreadArray(__spreadArray([], point, false), [canvasCenter], false));
                             oldContentCoords = __assign({}, contentCenter);
                             distanceContentCenter = {
@@ -1091,22 +1123,22 @@
                             maxDistance = Math.max(Math.abs(distanceContentCenter.x), Math.abs(distanceContentCenter.y));
                             distanceGridLength = Math.ceil(maxDistance * this.devicePixelRatio / (unitSize + unitGap));
                             time = duration !== null && duration !== void 0 ? duration : Math.max(Math.min(distanceGridLength * 50, 2000), 300);
-                            this.isFocuing = true;
                             // 在指定时间内通过特定过渡方式变成指定值
                             return [4 /*yield*/, t(time, {
                                     mode: speedMode,
-                                    onUpdate: function (percent) {
+                                    onUpdate: function (percent, cancel) {
                                         _this._contentCenter = {
                                             x: oldContentCoords.x + distanceContentCenter.x * percent,
                                             y: oldContentCoords.y + distanceContentCenter.y * percent,
                                         };
                                         _this.render();
+                                        _this.currentFocusing = { percent: percent, cancel: cancel };
                                     }
                                 })];
                         case 1:
                             // 在指定时间内通过特定过渡方式变成指定值
-                            _c.sent();
-                            this.isFocuing = false;
+                            _e.sent();
+                            this.currentFocusing = undefined;
                             return [2 /*return*/];
                     }
                 });
@@ -2230,6 +2262,21 @@
         });
     };
 
+    /**
+     * 是否是相似色块
+     * @param {RGBA} color1 色值1
+     * @param {RGBA} color2 色值2
+     * @param {boolean} ignoreOpacity 是否忽略透明度
+     * @returns {boolean} 是否是同色值
+     */
+    var isSameRGBA = function (color1, color2, ignoreOpacity) {
+        if (ignoreOpacity === void 0) { ignoreOpacity = false; }
+        return (color1.r === color2.r &&
+            color1.g === color2.g &&
+            color1.b === color2.b &&
+            (!ignoreOpacity || color1.a === color2.a));
+    };
+
     /** 加载图片 */
     var loadImage = function (src) { return new Promise(function (resolve) {
         var image = new Image();
@@ -2241,7 +2288,7 @@
 
     /** 获取图片数据 */
     var getImageData = function (src) { return __awaiter(void 0, void 0, void 0, function () {
-        var image, img2Canvas, ctx, imageData;
+        var image, img2Canvas, ctx, imageData, getPixelColor, getRangePixel;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0: return [4 /*yield*/, loadImage(src)];
@@ -2257,7 +2304,29 @@
                         return [2 /*return*/, undefined];
                     ctx.drawImage(image, 0, 0);
                     imageData = ctx.getImageData(0, 0, img2Canvas.width, img2Canvas.height).data;
+                    getPixelColor = function (row, col) {
+                        var ind = (row * image.width + col) * 4;
+                        var r = imageData[ind];
+                        var g = imageData[ind + 1];
+                        var b = imageData[ind + 2];
+                        var a = imageData[ind + 3] / 255;
+                        return { r: r, g: g, b: b, a: a };
+                    };
+                    getRangePixel = function (startRow, startCol, endRow, endCol) {
+                        var range = [];
+                        if (endCol < startCol || endRow < endRow)
+                            return range;
+                        for (var y = startCol; y < endCol; y++) {
+                            range[endCol - startCol] = [];
+                            for (var x = startRow; x < endRow; x++) {
+                                range[endCol - startCol].push(getPixelColor(x, y));
+                            }
+                        }
+                        return range;
+                    };
                     return [2 /*return*/, {
+                            getPixelColor: getPixelColor,
+                            getRangePixel: getRangePixel,
                             /**
                              * 遍历像素值
                              * ...r, g, b, a...每四个色值元素组成一个像素
@@ -2271,16 +2340,11 @@
                                         for (var x = 0; x < unitSize; x++) {
                                             var row = unitRow * unitSize + y;
                                             var col = unitCol * unitSize + x;
-                                            var ind = (row * image.width + col) * 4;
-                                            var r = imageData[ind];
-                                            var g = imageData[ind + 1];
-                                            var b = imageData[ind + 2];
-                                            var a = imageData[ind + 3];
                                             callback({
                                                 x: col,
                                                 y: row,
-                                                rgba: { r: r, g: g, b: b, a: a },
-                                                unit: unitSize > 1 ? { x: x, y: y } : undefined,
+                                                rgba: getPixelColor(row, col),
+                                                unit: unitSize > 0 ? { x: x, y: y } : undefined,
                                             });
                                         }
                                     }
@@ -2298,37 +2362,192 @@
         });
     }); };
 
-    var pixelated = function (src, size, gap) { return __awaiter(void 0, void 0, void 0, function () {
-        var imageData, width, height, mapPixels, points;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0: return [4 /*yield*/, getImageData(src)];
-                case 1:
-                    imageData = _a.sent();
-                    if (imageData === undefined)
-                        return [2 /*return*/];
-                    width = imageData.width, height = imageData.height, mapPixels = imageData.mapPixels;
-                    points = [];
-                    // 模糊像素遍历
-                    mapPixels(size + gap, function (_a) {
-                        var x = _a.x, y = _a.y, rgba = _a.rgba, unit = _a.unit;
-                        var halfSize = Math.floor(size / 2);
-                        if (!unit || (unit && unit.x === halfSize && unit.y === halfSize)) {
-                            points.push({
-                                col: Math.floor(x / size),
-                                row: Math.floor(y / size),
-                                fill: rgba,
-                            });
-                        }
-                    });
-                    return [2 /*return*/, {
-                            cols: Math.floor(width / size),
-                            rows: Math.floor(height / size),
-                            points: points,
-                        }];
-            }
+    /**
+     * 计算范围内连续性最高的值
+     */
+    var calcMostRelated = function (values, isRelated) {
+        var result = {
+            times: 0,
+            value: undefined,
+        };
+        var flags = [];
+        var findRelatedAround = function (x, y) {
+            if (flags[y] && flags[y][x])
+                return 0;
+            // 标记自身
+            if (flags[y] === undefined)
+                flags[y] = [];
+            flags[y][x] = true;
+            // 色值
+            var value = values[y][x];
+            // 关联次数
+            var times = 1;
+            // 判断四周相似值
+            ([
+                [y - 1, x],
+                [y + 1, x],
+                [y, x - 1],
+                [y, x + 1], // 右
+            ]).forEach(function (_a) {
+                var targetY = _a[0], targetX = _a[1];
+                if (!values[targetY] || !values[targetY][targetX])
+                    return;
+                if (isRelated(value, values[targetY][targetX])) {
+                    times += findRelatedAround(targetX, targetY);
+                }
+            });
+            return times;
+        };
+        values.forEach(function (rowArrays, row) {
+            rowArrays.forEach(function (value, col) {
+                var times = findRelatedAround(col, row);
+                if (times > result.times)
+                    result = { times: times, value: value };
+            });
         });
-    }); };
+        return result;
+    };
+
+    /**
+     * 计算出现次数最多的值
+     */
+    var calcMostAppear = function (values, isSame) {
+        var valueTimes = values.reduce(function (resule, value) {
+            var _result = resule;
+            var index = _result.findIndex(function (item) { return isSame(item.value, value); });
+            if (index > -1)
+                _result[index].times++;
+            else
+                _result.push({ times: 1, value: value });
+            return _result;
+        }, []);
+        valueTimes.sort(function (a, b) { return b.times - a.times; });
+        return valueTimes;
+    };
+
+    var pixelated = function (src, options) {
+        if (options === void 0) { options = {}; }
+        return __awaiter(void 0, void 0, void 0, function () {
+            var imageData, getPixelatedData;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, getImageData(src)];
+                    case 1:
+                        imageData = _a.sent();
+                        if (imageData === undefined)
+                            return [2 /*return*/];
+                        getPixelatedData = function (_imageData, _options) {
+                            var _a = _options.mode, mode = _a === void 0 ? 'use-middle' : _a, _b = _options.size, size = _b === void 0 ? 1 : _b, _c = _options.gap, gap = _c === void 0 ? 0 : _c;
+                            var getRangePixel = _imageData.getRangePixel, mapPixels = _imageData.mapPixels, width = _imageData.width, height = _imageData.height;
+                            var points = [];
+                            var drawStrategies = {
+                                /** 策略 1：使用颜色出现最多的颜色作为像素块填充 */
+                                'use-most': function () {
+                                    var colors = [];
+                                    mapPixels(size + gap, function (_a) {
+                                        var x = _a.x, y = _a.y, rgba = _a.rgba, unit = _a.unit;
+                                        if (unit && unit.x === 0 && unit.y === 0)
+                                            colors = [];
+                                        colors.push(rgba);
+                                        var lastIndex = size - 1;
+                                        // 当遍历单位区域到最后一个像素
+                                        if (unit && unit.x === lastIndex && unit.y === lastIndex) {
+                                            var colorTimes = calcMostAppear(colors, isSameRGBA);
+                                            if (colorTimes.length === 0)
+                                                return;
+                                            console.log(colorTimes);
+                                            var theMostColor = colorTimes[0].value;
+                                            points.push({
+                                                col: Math.floor(x / size),
+                                                row: Math.floor(y / size),
+                                                fill: theMostColor,
+                                            });
+                                        }
+                                    });
+                                },
+                                /** 策略 2：使用出现的第一个颜色作为像素块填充 */
+                                'use-first': function () {
+                                    mapPixels(size + gap, function (_a) {
+                                        var x = _a.x, y = _a.y, rgba = _a.rgba, unit = _a.unit;
+                                        if (rgba.a === 0)
+                                            return;
+                                        if (unit && unit.x === 0 && unit.y === 0) {
+                                            points.push({
+                                                col: Math.floor(x / size),
+                                                row: Math.floor(y / size),
+                                                fill: rgba,
+                                            });
+                                        }
+                                    });
+                                },
+                                /** 策略 3：使用中间出现的颜色作为像素块填充 */
+                                'use-middle': function () {
+                                    mapPixels(size + gap, function (_a) {
+                                        var x = _a.x, y = _a.y, rgba = _a.rgba, unit = _a.unit;
+                                        if (rgba.a === 0)
+                                            return;
+                                        var middleIndex = Math.floor(size / 2);
+                                        if (unit && unit.x === middleIndex && unit.y === middleIndex) {
+                                            points.push({
+                                                col: Math.floor(x / size),
+                                                row: Math.floor(y / size),
+                                                fill: rgba,
+                                            });
+                                        }
+                                    });
+                                },
+                                /** 策略 4：使用最后出现的颜色作为像素块填充 */
+                                'use-last': function () {
+                                    mapPixels(size + gap, function (_a) {
+                                        var x = _a.x, y = _a.y, rgba = _a.rgba, unit = _a.unit;
+                                        if (rgba.a === 0)
+                                            return;
+                                        var lastIndex = size - 1;
+                                        if (unit && unit.x === lastIndex && unit.y === lastIndex) {
+                                            points.push({
+                                                col: Math.floor(x / size),
+                                                row: Math.floor(y / size),
+                                                fill: rgba,
+                                            });
+                                        }
+                                    });
+                                },
+                                /**
+                                 * 策略 5：使用范围内连续色值最多的颜色作为像素块填充
+                                 * @param {number} spread 拓展范围
+                                 */
+                                'use-most-related': function (spread) {
+                                    if (spread === void 0) { spread = 0; }
+                                    mapPixels(size + gap, function (_a) {
+                                        var x = _a.x, y = _a.y; _a.rgba; var unit = _a.unit;
+                                        if (!unit)
+                                            return;
+                                        // 当遍历单位区域到最后一个像素
+                                        if (unit && unit.x === 0 && unit.y === 0) {
+                                            var color = calcMostRelated(getRangePixel(y - spread, x - spread, y + size - 1 + spread, x + size - 1 + spread), isSameRGBA).value;
+                                            if (!color)
+                                                return;
+                                            points.push({
+                                                col: Math.floor(x / size),
+                                                row: Math.floor(y / size),
+                                                fill: color,
+                                            });
+                                        }
+                                    });
+                                }
+                            };
+                            drawStrategies[mode]();
+                            return Promise.resolve({
+                                cols: Math.floor(width / size),
+                                rows: Math.floor(height / size),
+                                points: points,
+                            });
+                        };
+                        return [2 /*return*/, getPixelatedData(imageData, options)];
+                }
+            });
+        });
+    };
 
     /** 格子大小 */
     var GRID_SIZE = 5;
@@ -2344,7 +2563,7 @@
         url: 'https://storage.sunzi.cool/font/965b7d59-bad0-466b-9703-a20672e27bc7.ttf'
     };
     var createBlogColorWorld = function () { return __awaiter(void 0, void 0, void 0, function () {
-        var _canvas, _a, width, height, unbounedCanvas, getRadius, drawPoint;
+        var _canvas, _a, width, height, unbounedCanvas, getRadius, drawPoint, button;
         var _b;
         return __generator(this, function (_c) {
             switch (_c.label) {
@@ -2459,7 +2678,11 @@
                                 .text("(x: ".concat(point[0], ", y: ").concat(point[1], ")"), 10, 10);
                         });
                     });
-                    return [4 /*yield*/, pixelated('./assets/text.png', 5, 0)
+                    return [4 /*yield*/, pixelated('./assets/test.png', {
+                            size: 5,
+                            gap: 0,
+                            mode: 'use-most-related',
+                        })
                             .then(function (imageData) {
                             if (!imageData)
                                 return;
@@ -2477,16 +2700,24 @@
                             }, {
                                 needOffScreenCache: true,
                             });
-                        })];
+                        })
+                        /**
+                         * 浏览器尺寸变化事件监听
+                         */
+                    ];
                 case 1:
                     _c.sent();
-                    console.dir(unbounedCanvas.getLayer('bg'));
                     /**
                      * 浏览器尺寸变化事件监听
                      */
                     window.addEventListener('resize', throttle(function () {
                         unbounedCanvas.updateCanvas(document.body.clientWidth, document.body.clientHeight);
                     }, 50));
+                    button = document.querySelector('#back_center');
+                    if (button)
+                        button.addEventListener('click', function () {
+                            unbounedCanvas === null || unbounedCanvas === void 0 ? void 0 : unbounedCanvas.focus([0, 0]);
+                        });
                     return [2 /*return*/];
             }
         });

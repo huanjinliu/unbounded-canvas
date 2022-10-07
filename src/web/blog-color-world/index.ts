@@ -2,7 +2,7 @@ import UnboundedCanvas from '../../unbounded-canvas/index.class';
 import getDrawers from '../../drawers';
 import throttle from '../../utils/throttle';
 import { loadFont } from '../../utils/load-font';
-import { pixelated } from './utils/pixelated';
+import pixelated from './pixelated';
 
 /** 格子大小 */
 const GRID_SIZE = 5;
@@ -142,7 +142,11 @@ const createBlogColorWorld = async () => {
     })
   })
 
-  await pixelated('./assets/text.png', 5, 0)
+  await pixelated('./assets/test.png', {
+    size: 5,
+    gap: 0,
+    mode: 'use-most-related',
+  })
     .then(imageData => {
       if (!imageData) return;
       const { rows, cols, points } = imageData;
@@ -164,8 +168,6 @@ const createBlogColorWorld = async () => {
         needOffScreenCache: true,
       });
     })
-
-  console.dir(unbounedCanvas.getLayer('bg'))
     
   /**
    * 浏览器尺寸变化事件监听
@@ -176,6 +178,11 @@ const createBlogColorWorld = async () => {
       document.body.clientHeight,
     );
   }, 50));
+
+  const button = document.querySelector('#back_center');
+  if (button) button.addEventListener('click', () => {
+    unbounedCanvas?.focus([0, 0]);
+  })
 };
 
 createBlogColorWorld();
