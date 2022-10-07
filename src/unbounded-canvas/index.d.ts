@@ -83,3 +83,18 @@ export type NaturalListener<K extends keyof HTMLElementEventMap> = {
   options?: boolean | AddEventListenerOptions;
   window?: boolean;
 };
+
+/**
+ * 创建画布共有属性
+ */
+export interface CommonCreateCanvasOptions {
+  /**
+   * 图层唯一名称
+   * 可用通过图层名称取得图层画布数据，如果不设置只能通过一开始的函数调用返回值获取图层数据
+   */
+  uniqueKey: string;
+  /**
+   * 图层层级
+   */
+  zIndex: number;
+}

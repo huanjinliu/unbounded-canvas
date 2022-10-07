@@ -58,75 +58,74 @@ const createBlogColorWorld = async () => {
     color: string,
     center?: Coordinate,
   ) => {
-    const { devicePixelRatio, unitSize, unitGap, contentCenter } = unbounedCanvas.getOptions();
+    const { width, height, devicePixelRatio, unitSize, unitGap, contentCenter } = unbounedCanvas.getOptions();
     const radius = getRadius();
     const size = unitSize + unitGap
     const halfSize = unitSize / 2;
     const _center = center ?? contentCenter;
 
-    if (Array.isArray(point)) {
-      const [x, y] = point;
-
-      await getDrawers(ctx)
-        .style({ fillStyle: color })
-        .rect(
-          _center.x * devicePixelRatio + x * size - halfSize,
-          _center.y * devicePixelRatio + y * size - halfSize,
-          unitSize,
-          unitSize,
-          radius,
-        );
-    } else {
-      const { x, y } = point;
-
-      await getDrawers(ctx)
-        .style({ fillStyle: color })
-        .rect(x - halfSize, y - halfSize, unitSize, unitSize, radius);
-    }
+    const [x, y] = Array.isArray(point)
+      ? [
+        _center.x * devicePixelRatio + point[0] * size - halfSize,
+        _center.y * devicePixelRatio + point[1] * size - halfSize,
+      ]
+      : [
+        point.x - halfSize,
+        point.y - halfSize,
+      ]
+    // 如果不在画布内的格子不进行渲染  
+    if (x + unitSize < 0 || x > width || y + unitSize < 0 || y > height) return;
+    await getDrawers(ctx)
+      .style({ fillStyle: color })
+      .rect(x, y, unitSize, unitSize, radius);
   };
 
   /**
    * 监听绘制更新
    */
-  unbounedCanvas.addLayer((ctx) => {
-    const { width, height, unitSize, unitGap, contentCenter } = unbounedCanvas.getOptions();
-    const size = unitSize + unitGap
-    const radius = getRadius();
-    const r = radius > 3 ? radius : 0;
-  
-    const unitFirstPoint = unbounedCanvas.getUnitFirstPoint(contentCenter);
+  unbounedCanvas
+    .add2dLayer((ctx) => {
+      const { width, height, unitSize, unitGap, contentCenter } = unbounedCanvas.getOptions();
+      const size = unitSize + unitGap
+      const radius = getRadius();
+      const r = radius > 3 ? radius : 0;
+    
+      const unitFirstPoint = unbounedCanvas.getUnitFirstPoint(contentCenter);
 
-    const drawRadiusRectPath = (left: number, top: number) => {
-      ctx.moveTo(left + r, top);
-      ctx.lineTo(left + unitSize - r, top);
-      r && ctx.arcTo(left + unitSize, top, left + unitSize, top + r, radius);
-      ctx.lineTo(left + unitSize, top + unitSize - r);
-      r && ctx.arcTo(left + unitSize, top + unitSize, left + unitSize - r, top + unitSize, radius);
-      ctx.lineTo(left + r, top + unitSize);
-      r && ctx.arcTo(left, top + unitSize, left, top + unitSize - r, radius);
-      ctx.lineTo(left, top + r);
-      r && ctx.arcTo(left, top, left + r, top, radius);
-      ctx.lineTo(left, top + r);
-    }
-    // 绘制矩形格子
-    ctx.save();
-    ctx.fillStyle = '#f2f2f2';
-    ctx.beginPath();
-    for (let y = unitFirstPoint.y; y < height + size; y += size) {
-      for (let x = unitFirstPoint.x; x < width + size; x += size) {
-        drawRadiusRectPath(x, y);
+      const drawRadiusRectPath = (left: number, top: number) => {
+        ctx.moveTo(left + r, top);
+        ctx.lineTo(left + unitSize - r, top);
+        r && ctx.arcTo(left + unitSize, top, left + unitSize, top + r, radius);
+        ctx.lineTo(left + unitSize, top + unitSize - r);
+        r && ctx.arcTo(left + unitSize, top + unitSize, left + unitSize - r, top + unitSize, radius);
+        ctx.lineTo(left + r, top + unitSize);
+        r && ctx.arcTo(left, top + unitSize, left, top + unitSize - r, radius);
+        ctx.lineTo(left, top + r);
+        r && ctx.arcTo(left, top, left + r, top, radius);
+        ctx.lineTo(left, top + r);
       }
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  })
+      // 绘制矩形格子
+      ctx.save();
+      ctx.fillStyle = '#f2f2f2';
+      ctx.beginPath();
+      for (let y = unitFirstPoint.y; y < height + size; y += size) {
+        for (let x = unitFirstPoint.x; x < width + size; x += size) {
+          drawRadiusRectPath(x, y);
+        }
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }, {
+      uniqueKey: 'bg',
+      needOffScreenCache: true,
+    });
 
   /**
    * 坐标参考
    */
   loadFont(FONT_CONFIGURATION, 1000)?.then(fontName => {
-    unbounedCanvas.addLayer( (ctx) => {
+    unbounedCanvas.add2dLayer((ctx) => {
       const { contentCenter } = unbounedCanvas.getOptions();
       const point = unbounedCanvas.viewCoords2UnitPoint(
         contentCenter.x,
@@ -147,9 +146,8 @@ const createBlogColorWorld = async () => {
     .then(imageData => {
       if (!imageData) return;
       const { rows, cols, points } = imageData;
-      // console.dir(imageData)
-      unbounedCanvas.addLayer((ctx) => {
-        console.time('word');
+      unbounedCanvas.add2dLayer((ctx) => {
+        // console.time('word');
         points.forEach(({ col, row, fill }) => {
           if (
             (fill.r === 255 && fill.g === 255 && fill.b === 255) ||
@@ -161,10 +159,14 @@ const createBlogColorWorld = async () => {
             `rgba(${fill.r}, ${fill.g}, ${fill.b}, ${fill.a})`
           );
         })
-        console.timeEnd('word');
+        // console.timeEnd('word');
+      }, {
+        needOffScreenCache: true,
       });
     })
 
+  console.dir(unbounedCanvas.getLayer('bg'))
+    
   /**
    * 浏览器尺寸变化事件监听
    */

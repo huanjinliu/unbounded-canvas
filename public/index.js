@@ -17,6 +17,30 @@
     OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
     PERFORMANCE OF THIS SOFTWARE.
     ***************************************************************************** */
+
+    /* global Reflect, Promise */
+    var extendStatics = function (d, b) {
+      extendStatics = Object.setPrototypeOf || {
+        __proto__: []
+      } instanceof Array && function (d, b) {
+        d.__proto__ = b;
+      } || function (d, b) {
+        for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p];
+      };
+
+      return extendStatics(d, b);
+    };
+
+    function __extends(d, b) {
+      if (typeof b !== "function" && b !== null) throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
+      extendStatics(d, b);
+
+      function __() {
+        this.constructor = d;
+      }
+
+      d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    }
     var __assign = function () {
       __assign = Object.assign || function __assign(t) {
         for (var s, i = 1, n = arguments.length; i < n; i++) {
@@ -30,6 +54,16 @@
 
       return __assign.apply(this, arguments);
     };
+    function __rest(s, e) {
+      var t = {};
+
+      for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0) t[p] = s[p];
+
+      if (s != null && typeof Object.getOwnPropertySymbols === "function") for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+        if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i])) t[p[i]] = s[p[i]];
+      }
+      return t;
+    }
     function __awaiter(thisArg, _arguments, P, generator) {
       function adopt(value) {
         return value instanceof P ? value : new P(function (resolve) {
@@ -265,14 +299,7 @@
             if (extraOptions === void 0) { extraOptions = {}; }
             var _this = this;
             this._element = null;
-            this._context2d = null;
-            this._cacheElement = null;
-            this._cacheContext2d = null;
-            /**
-             * 渲染器
-             */
-            this._renders = [];
-            var _a = extraOptions.styles, styles = _a === void 0 ? {} : _a, _b = extraOptions.needOffScreenCache, needOffScreenCache = _b === void 0 ? false : _b;
+            var _a = extraOptions.styles, styles = _a === void 0 ? {} : _a;
             this._element = document.createElement("canvas");
             if (width)
                 this._element.width = width;
@@ -281,22 +308,12 @@
             Object.keys(styles).forEach(function (key) {
                 _this._element.style[key] = styles[key];
             });
-            this._context2d = this._element.getContext("2d");
-            // 构建缓存画布（离屏画布）
-            if (needOffScreenCache)
-                this.createCacheCanvas();
         }
         /**
          * 取得canvas节点
          */
         Canvas.prototype.getElement = function () {
             return this._element;
-        };
-        /**
-         * 取得画布上下文
-         */
-        Canvas.prototype.getContext = function () {
-            return this._context2d;
         };
         /**
          * 改变画布尺寸
@@ -306,6 +323,42 @@
                 return;
             this._element.width = width;
             this._element.height = height;
+        };
+        return Canvas;
+    }());
+
+    var Canvas2d = /** @class */ (function (_super) {
+        __extends(Canvas2d, _super);
+        function Canvas2d(width, height, extraOptions) {
+            if (extraOptions === void 0) { extraOptions = {}; }
+            var _this = this;
+            var _a = extraOptions.styles, styles = _a === void 0 ? {} : _a, _b = extraOptions.needOffScreenCache, needOffScreenCache = _b === void 0 ? false : _b;
+            _this = _super.call(this, width, height, { styles: styles }) || this;
+            _this._context = null;
+            _this._cacheElement = null;
+            _this._cacheContext = null;
+            /**
+             * 渲染器
+             */
+            _this._renders = [];
+            if (_this._element)
+                _this._context = _this._element.getContext('2d');
+            // 构建缓存画布（离屏画布）
+            if (needOffScreenCache)
+                _this.createCacheCanvas();
+            return _this;
+        }
+        /**
+         * 取得画布上下文
+         */
+        Canvas2d.prototype.getContext = function () {
+            return this._context;
+        };
+        /**
+         * 改变画布尺寸
+         */
+        Canvas2d.prototype.changeSize = function (width, height) {
+            _super.prototype.changeSize.call(this, width, height);
             if (!this._cacheElement)
                 return;
             this._cacheElement.width = width;
@@ -314,46 +367,46 @@
         /**
          * 创建缓存画布（离屏画布）
          */
-        Canvas.prototype.createCacheCanvas = function () {
+        Canvas2d.prototype.createCacheCanvas = function () {
             if (!this._element)
                 return;
             this._cacheElement = document.createElement("canvas");
             this._cacheElement.width = this._element.width;
             this._cacheElement.height = this._element.height;
-            this._cacheContext2d = this._cacheElement.getContext("2d");
+            this._cacheContext = this._cacheElement.getContext('2d');
             return {
                 canvas: this._cacheElement,
-                context2d: this._cacheContext2d,
+                context: this._cacheContext,
             };
         };
         /**
          * 添加渲染器
          */
-        Canvas.prototype.addRender = function (handler) {
+        Canvas2d.prototype.addRender = function (handler) {
             this._renders.push(handler);
             return this;
         };
         /**
          * 执行全部渲染器
          */
-        Canvas.prototype.renderAll = function () {
+        Canvas2d.prototype.renderAll = function () {
             var _a;
             if (!this._element)
                 return;
-            var _context = (_a = this._cacheContext2d) !== null && _a !== void 0 ? _a : this._context2d;
+            var _context = (_a = this._cacheContext) !== null && _a !== void 0 ? _a : this._context;
             if (!_context)
                 return;
             _context.clearRect(0, 0, this._element.width, this._element.height);
             this._renders.forEach(function (render) { return render(_context); });
-            if (this._cacheElement && this._context2d) {
-                this._context2d.clearRect(0, 0, this._element.width, this._element.height);
-                this._context2d.drawImage(this._cacheElement, 0, 0);
+            if (this._cacheElement && this._context) {
+                this._context.clearRect(0, 0, this._element.width, this._element.height);
+                this._context.drawImage(this._cacheElement, 0, 0);
             }
         };
         /**
          * 画布销毁
          */
-        Canvas.prototype.dispose = function () {
+        Canvas2d.prototype.dispose = function () {
             var disposeCanvas = function (canvas, ctx) {
                 canvas.width = 1;
                 canvas.height = 1;
@@ -361,17 +414,80 @@
                 canvas.removeAttribute('style');
             };
             if (this._element)
-                disposeCanvas(this._element, this._context2d);
+                disposeCanvas(this._element, this._context);
             if (this._cacheElement)
-                disposeCanvas(this._cacheElement, this._cacheContext2d);
+                disposeCanvas(this._cacheElement, this._cacheContext);
             this._renders = [];
             this._element = null;
-            this._context2d = null;
+            this._context = null;
             this._cacheElement = null;
-            this._cacheContext2d = null;
+            this._cacheContext = null;
         };
-        return Canvas;
-    }());
+        return Canvas2d;
+    }(Canvas));
+
+    var CanvasWebGL = /** @class */ (function (_super) {
+        __extends(CanvasWebGL, _super);
+        function CanvasWebGL(width, height, extraOptions) {
+            if (extraOptions === void 0) { extraOptions = {}; }
+            var _this = this;
+            extraOptions.styles;
+            _this = _super.call(this, width, height, extraOptions) || this;
+            /**
+             * 画布内容上下文
+             */
+            _this._context = null;
+            /**
+             * 渲染器
+             */
+            _this._renders = [];
+            if (_this._element)
+                _this._context = _this._element.getContext('webgl');
+            return _this;
+        }
+        /**
+         * 取得画布上下文
+         */
+        CanvasWebGL.prototype.getContext = function () {
+            return this._context;
+        };
+        /**
+         * 添加渲染器
+         */
+        CanvasWebGL.prototype.addRender = function (handler) {
+            this._renders.push(handler);
+            return this;
+        };
+        /**
+         * 执行全部渲染器
+         */
+        CanvasWebGL.prototype.renderAll = function () {
+            if (!this._element)
+                return;
+            var _context = this._context;
+            if (!_context)
+                return;
+            // _context.clearRect(0, 0, this._element.width, this._element.height);
+            this._renders.forEach(function (render) { return render(_context); });
+        };
+        /**
+         * 画布销毁
+         */
+        CanvasWebGL.prototype.dispose = function () {
+            var disposeCanvas = function (canvas, ctx) {
+                canvas.width = 1;
+                canvas.height = 1;
+                // ctx?.clearRect(0, 0, 1, 1);
+                canvas.removeAttribute('style');
+            };
+            if (this._element)
+                disposeCanvas(this._element, this._context);
+            this._renders = [];
+            this._element = null;
+            this._context = null;
+        };
+        return CanvasWebGL;
+    }(Canvas));
 
     /** 默认空坐标 */
     var EMPTY_COORDINATE = { x: 0, y: 0 };
@@ -563,31 +679,64 @@
         /**
          * 添加渲染图层
          */
-        UnboundedCanvas.prototype.addLayer = function (handler, options) {
-            if (options === void 0) { options = {}; }
+        UnboundedCanvas.prototype.addLayer = function (options) {
             if (!this._container)
-                return;
+                throw ReferenceError('missing canvas container!');
             var _a = this._container, width = _a.clientWidth, height = _a.clientHeight;
-            var _b = options.zIndex, zIndex = _b === void 0 ? 1 : _b;
-            var canvas = new Canvas(width * this.devicePixelRatio, height * this.devicePixelRatio, {
-                styles: {
+            var type = options.type, _b = options.zIndex, zIndex = _b === void 0 ? 1 : _b, uniqueKey = options.uniqueKey, restOptions = __rest(options, ["type", "zIndex", "uniqueKey"]);
+            // 判断key值已存在，存在直接抛出错误
+            if (uniqueKey && this._layers.some(function (_a) {
+                var name = _a.name;
+                return name === uniqueKey;
+            })) {
+                throw new Error("layer named ".concat(uniqueKey, " already exists!"));
+            }
+            var canvas = new ({
+                '2d': Canvas2d,
+                'webgl': CanvasWebGL,
+            }[type])(width * this.devicePixelRatio, height * this.devicePixelRatio, __assign({ styles: {
                     width: '100%',
                     height: '100%',
                     position: 'absolute',
-                }
-            });
-            canvas.addRender(handler);
+                } }, restOptions));
             var canvasList = this._container.childNodes;
             var insertIndex = this._layers.findIndex(function (layer) { return layer.zIndex > zIndex; });
             if (insertIndex === -1)
                 insertIndex = this._layers.length;
             var element = canvas.getElement();
             if (!element)
-                return;
+                throw ReferenceError('missing canvas element!');
             this._container.insertBefore(element, canvasList[insertIndex]);
-            this._layers.splice(insertIndex, 0, { canvas: canvas, zIndex: zIndex });
-            this.render();
+            this._layers.splice(insertIndex, 0, { canvas: canvas, zIndex: zIndex, name: uniqueKey });
             return canvas;
+        };
+        /**
+         * 添加普通2d画布
+         */
+        UnboundedCanvas.prototype.add2dLayer = function (handler, options) {
+            if (options === void 0) { options = {}; }
+            var canvas = this.addLayer(__assign({ type: '2d' }, options));
+            canvas.addRender(handler).renderAll();
+            return canvas;
+        };
+        /**
+         * 添加webgl画布
+         */
+        UnboundedCanvas.prototype.addWebGLLayer = function (handler, options) {
+            if (options === void 0) { options = {}; }
+            var canvas = this.addLayer(__assign({ type: 'webgl' }, options));
+            canvas.addRender(handler).renderAll();
+            return canvas;
+        };
+        /**
+         * 获取图层画布
+         */
+        UnboundedCanvas.prototype.getLayer = function (key) {
+            var _a;
+            return (_a = this._layers.find(function (_a) {
+                var name = _a.name;
+                return name === key;
+            })) === null || _a === void 0 ? void 0 : _a.canvas;
         };
         /**
          * 获取画布参数
@@ -2225,39 +2374,41 @@
                         return 1 * devicePixelRatio * zoom;
                     };
                     drawPoint = function (ctx, point, color, center) { return __awaiter(void 0, void 0, void 0, function () {
-                        var _a, devicePixelRatio, unitSize, unitGap, contentCenter, radius, size, halfSize, _center, x, y, x, y;
-                        return __generator(this, function (_b) {
-                            switch (_b.label) {
+                        var _a, width, height, devicePixelRatio, unitSize, unitGap, contentCenter, radius, size, halfSize, _center, _b, x, y;
+                        return __generator(this, function (_c) {
+                            switch (_c.label) {
                                 case 0:
-                                    _a = unbounedCanvas.getOptions(), devicePixelRatio = _a.devicePixelRatio, unitSize = _a.unitSize, unitGap = _a.unitGap, contentCenter = _a.contentCenter;
+                                    _a = unbounedCanvas.getOptions(), width = _a.width, height = _a.height, devicePixelRatio = _a.devicePixelRatio, unitSize = _a.unitSize, unitGap = _a.unitGap, contentCenter = _a.contentCenter;
                                     radius = getRadius();
                                     size = unitSize + unitGap;
                                     halfSize = unitSize / 2;
                                     _center = center !== null && center !== void 0 ? center : contentCenter;
-                                    if (!Array.isArray(point)) return [3 /*break*/, 2];
-                                    x = point[0], y = point[1];
+                                    _b = Array.isArray(point)
+                                        ? [
+                                            _center.x * devicePixelRatio + point[0] * size - halfSize,
+                                            _center.y * devicePixelRatio + point[1] * size - halfSize,
+                                        ]
+                                        : [
+                                            point.x - halfSize,
+                                            point.y - halfSize,
+                                        ], x = _b[0], y = _b[1];
+                                    // 如果不在画布内的格子不进行渲染  
+                                    if (x + unitSize < 0 || x > width || y + unitSize < 0 || y > height)
+                                        return [2 /*return*/];
                                     return [4 /*yield*/, getDrawers(ctx)
                                             .style({ fillStyle: color })
-                                            .rect(_center.x * devicePixelRatio + x * size - halfSize, _center.y * devicePixelRatio + y * size - halfSize, unitSize, unitSize, radius)];
+                                            .rect(x, y, unitSize, unitSize, radius)];
                                 case 1:
-                                    _b.sent();
-                                    return [3 /*break*/, 4];
-                                case 2:
-                                    x = point.x, y = point.y;
-                                    return [4 /*yield*/, getDrawers(ctx)
-                                            .style({ fillStyle: color })
-                                            .rect(x - halfSize, y - halfSize, unitSize, unitSize, radius)];
-                                case 3:
-                                    _b.sent();
-                                    _b.label = 4;
-                                case 4: return [2 /*return*/];
+                                    _c.sent();
+                                    return [2 /*return*/];
                             }
                         });
                     }); };
                     /**
                      * 监听绘制更新
                      */
-                    unbounedCanvas.addLayer(function (ctx) {
+                    unbounedCanvas
+                        .add2dLayer(function (ctx) {
                         var _a = unbounedCanvas.getOptions(), width = _a.width, height = _a.height, unitSize = _a.unitSize, unitGap = _a.unitGap, contentCenter = _a.contentCenter;
                         var size = unitSize + unitGap;
                         var radius = getRadius();
@@ -2287,12 +2438,15 @@
                         ctx.closePath();
                         ctx.fill();
                         ctx.restore();
+                    }, {
+                        uniqueKey: 'bg',
+                        needOffScreenCache: true,
                     });
                     /**
                      * 坐标参考
                      */
                     (_b = loadFont(FONT_CONFIGURATION, 1000)) === null || _b === void 0 ? void 0 : _b.then(function (fontName) {
-                        unbounedCanvas.addLayer(function (ctx) {
+                        unbounedCanvas.add2dLayer(function (ctx) {
                             var contentCenter = unbounedCanvas.getOptions().contentCenter;
                             var point = unbounedCanvas.viewCoords2UnitPoint(contentCenter.x, contentCenter.y);
                             getDrawers(ctx)
@@ -2310,9 +2464,8 @@
                             if (!imageData)
                                 return;
                             var rows = imageData.rows, cols = imageData.cols, points = imageData.points;
-                            // console.dir(imageData)
-                            unbounedCanvas.addLayer(function (ctx) {
-                                console.time('word');
+                            unbounedCanvas.add2dLayer(function (ctx) {
+                                // console.time('word');
                                 points.forEach(function (_a) {
                                     var col = _a.col, row = _a.row, fill = _a.fill;
                                     if ((fill.r === 255 && fill.g === 255 && fill.b === 255) ||
@@ -2320,15 +2473,14 @@
                                         return;
                                     drawPoint(ctx, [Math.floor(-cols / 2) + col, Math.floor(-rows / 2) + row - 10], "rgba(".concat(fill.r, ", ").concat(fill.g, ", ").concat(fill.b, ", ").concat(fill.a, ")"));
                                 });
-                                console.timeEnd('word');
+                                // console.timeEnd('word');
+                            }, {
+                                needOffScreenCache: true,
                             });
-                        })
-                        /**
-                         * 浏览器尺寸变化事件监听
-                         */
-                    ];
+                        })];
                 case 1:
                     _c.sent();
+                    console.dir(unbounedCanvas.getLayer('bg'));
                     /**
                      * 浏览器尺寸变化事件监听
                      */

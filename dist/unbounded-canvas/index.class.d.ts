@@ -1,5 +1,6 @@
-import { CanvasOptions } from '.';
-import Canvas, { CanvasRender } from './canvas.class';
+import { CanvasOptions, CommonCreateCanvasOptions } from '.';
+import Canvas2d, { Canvas2dRender, CreateCanvas2dOptions } from './canvas-2d.class';
+import CanvasWebGL, { CanvasWebGLRender, CreateCanvasWebGLOptions } from './canvas-webgl.class';
 declare class UnboundedCanvas {
     /**
      * 画布容器
@@ -102,12 +103,19 @@ declare class UnboundedCanvas {
     /**
      * 添加渲染图层
      */
-    addLayer(handler: CanvasRender, options?: {
-        /**
-         * 图层层级
-         */
-        zIndex?: number;
-    }): Canvas | undefined;
+    private addLayer;
+    /**
+     * 添加普通2d画布
+     */
+    add2dLayer(handler: Canvas2dRender, options?: Partial<Omit<CreateCanvas2dOptions, 'styles'> & CommonCreateCanvasOptions>): Canvas2d;
+    /**
+     * 添加webgl画布
+     */
+    addWebGLLayer(handler: CanvasWebGLRender, options?: Partial<Omit<CreateCanvasWebGLOptions, 'styles'> & CommonCreateCanvasOptions>): CanvasWebGL;
+    /**
+     * 获取图层画布
+     */
+    getLayer(key: string): Canvas2d | CanvasWebGL | undefined;
     /**
      * 获取画布参数
      */

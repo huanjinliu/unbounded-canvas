@@ -1,10 +1,12 @@
 import { wait } from 'vivid-wait';
 import {
   CanvasOptions,
+  CommonCreateCanvasOptions,
   NaturalListener,
   ZoomSetting,
 } from '.';
-import Canvas, { CanvasRender } from './canvas.class';
+import Canvas2d, { Canvas2dRender, CreateCanvas2dOptions } from './canvas-2d.class';
+import CanvasWebGL, { CanvasWebGLRender, CreateCanvasWebGLOptions } from './canvas-webgl.class';
 
 /** 默认空坐标 */
 const EMPTY_COORDINATE = { x: 0, y: 0 };
@@ -115,7 +117,8 @@ class UnboundedCanvas {
    * 渲染图层
    */
   private _layers: {
-    canvas: Canvas,
+    name?: string;
+    canvas: Canvas2d | CanvasWebGL,
     zIndex: number,
   }[] = [];
 
@@ -254,20 +257,25 @@ class UnboundedCanvas {
   /**
    * 添加渲染图层
    */
-  addLayer (
-    handler: CanvasRender,
-    options: {
-      /**
-       * 图层层级
-       */
-      zIndex?: number;
-    } = {},
+  private addLayer(
+    options:
+    | ({ type: '2d' } & Partial<Omit<CreateCanvas2dOptions, 'styles'> & CommonCreateCanvasOptions>)
+    | ({ type: 'webgl' } & Partial<Omit<CreateCanvasWebGLOptions, 'styles'> & CommonCreateCanvasOptions>)
   ) {
-    if (!this._container) return;
+    if (!this._container) throw ReferenceError('missing canvas container!');
 
     const { clientWidth: width, clientHeight: height } = this._container;
-    const { zIndex = 1 } = options;
-    const canvas = new Canvas(
+    const { type, zIndex = 1, uniqueKey, ...restOptions } = options;
+
+    // 判断key值已存在，存在直接抛出错误
+    if (uniqueKey && this._layers.some(({ name }) => name === uniqueKey)) {
+      throw new Error(`layer named ${uniqueKey} already exists!`)
+    };
+
+    const canvas = new ({
+      '2d': Canvas2d,
+      'webgl': CanvasWebGL,
+    }[type])(
       width * this.devicePixelRatio,
       height * this.devicePixelRatio,
       {
@@ -275,23 +283,63 @@ class UnboundedCanvas {
           width: '100%',
           height: '100%',
           position: 'absolute',
-        }
+        },
+        ...restOptions,
       }
     );
-    canvas.addRender(handler);
 
     const canvasList = this._container.childNodes;
     let insertIndex = this._layers.findIndex((layer) => layer.zIndex > zIndex);
     if (insertIndex === -1) insertIndex = this._layers.length
     
     const element = canvas.getElement();
-    if (!element) return;
+    if (!element) throw ReferenceError('missing canvas element!');
 
     this._container.insertBefore(element, canvasList[insertIndex]);
-    this._layers.splice(insertIndex, 0, { canvas, zIndex });
-    this.render();
+    this._layers.splice(insertIndex, 0, { canvas, zIndex, name: uniqueKey });
 
     return canvas;
+  }
+
+  /**
+   * 添加普通2d画布
+   */
+  add2dLayer (
+    handler: Canvas2dRender,
+    options: Partial<Omit<CreateCanvas2dOptions, 'styles'> & CommonCreateCanvasOptions> = {}
+  ) {
+    const canvas = this.addLayer({
+      type: '2d',
+      ...options,
+    }) as Canvas2d;
+
+    canvas.addRender(handler).renderAll();
+
+    return canvas;
+  }
+
+  /**
+   * 添加webgl画布
+   */
+  addWebGLLayer  (
+    handler: CanvasWebGLRender,
+    options: Partial<Omit<CreateCanvasWebGLOptions, 'styles'> & CommonCreateCanvasOptions> = {}
+  ) {
+    const canvas = this.addLayer({
+      type: 'webgl',
+      ...options,
+    }) as CanvasWebGL;
+
+    canvas.addRender(handler).renderAll();
+
+    return canvas;
+  }
+
+  /**
+   * 获取图层画布
+   */
+  getLayer (key: string) {
+    return this._layers.find(({ name }) => name === key)?.canvas;
   }
 
   /**
