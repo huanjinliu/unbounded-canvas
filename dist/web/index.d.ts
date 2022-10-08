@@ -1,1 +1,1 @@
-import './blog-color-world';
+import './webgl-demo';

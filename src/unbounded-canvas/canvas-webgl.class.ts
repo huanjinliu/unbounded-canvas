@@ -9,7 +9,7 @@ export interface CreateCanvasWebGLOptions extends CreateCanvasOptions {
 /**
  * 画布渲染器
  */
-export type CanvasWebGLRender = (context: WebGLRenderingContext) => void;
+export type CanvasWebGLRender = (gl: WebGLRenderingContext) => void;
 
 
 class CanvasWebGL extends Canvas {

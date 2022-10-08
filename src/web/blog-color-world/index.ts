@@ -168,7 +168,7 @@ const createBlogColorWorld = async () => {
         needOffScreenCache: true,
       });
     })
-    
+
   /**
    * 浏览器尺寸变化事件监听
    */

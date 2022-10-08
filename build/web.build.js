@@ -4,6 +4,7 @@ import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import serve from 'rollup-plugin-serve';
 import livereload from 'rollup-plugin-livereload';
+import glsl from 'rollup-plugin-glsl';
 
 const config = {
   input: 'src/web/index.ts',
@@ -22,6 +23,9 @@ const config = {
     }),
     babel({
       babelHelpers: 'bundled'
+    }),
+    glsl({
+      include: 'src/**/*.glsl'
     }),
     serve({
       open: true,
