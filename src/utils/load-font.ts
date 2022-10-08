@@ -8,6 +8,21 @@ const fontStyleId = `font-style-${uuid()}`;
 const loadedFonts: Font[] = [];
 
 /**
+ * 测量文本尺寸
+ */
+export const measureText = (ctx: CanvasRenderingContext2D, text: string) => {
+  const measure = ctx.measureText(text);
+
+  return {
+    width: measure.actualBoundingBoxRight + measure.actualBoundingBoxLeft,
+    height: measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent,
+    offsetX: (measure.actualBoundingBoxRight - measure.actualBoundingBoxLeft) / 2,
+    offsetY: 0,
+    outerHeight: measure.fontBoundingBoxAscent + measure.fontBoundingBoxDescent,
+  }
+};
+
+/**
  * 加载字体
  * @param font 字体配置 {@link Font}
  * @param timeout 超时时间

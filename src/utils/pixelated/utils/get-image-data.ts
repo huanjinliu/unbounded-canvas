@@ -1,4 +1,4 @@
-import loadImage from "./load-image";
+import loadImage from "../../load-image";
 import type { RGBA } from "./is-same-rgba";
 
 type Pixel = {
