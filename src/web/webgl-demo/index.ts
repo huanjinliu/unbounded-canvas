@@ -44,6 +44,38 @@ const createWebGLProgram = (gl: WebGLRenderingContext, vertexSource: string, fra
   gl.deleteProgram(program);
 }
 
+/**
+ * 注入着色缓冲属性
+ */
+const injectBufferAttribute = (
+  gl: WebGLRenderingContext,
+  program: WebGLProgram,
+  attributeName: string
+) => {
+  const attributeLocation = gl.getAttribLocation(program, attributeName);
+  // 属性从缓冲中获取数据，创建缓冲
+  const positionBuffer = gl.createBuffer();
+  // 绑定位置信息缓冲，后续可以通过引用绑定点指向信息数据源
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  // 启用对应顶点属性
+  gl.enableVertexAttribArray(attributeLocation);
+
+  return (size: number, dataArray: number[], options: {
+    type?: number;
+    normalize?: boolean;
+  } = {}) => {
+    const { type = gl.FLOAT, normalize = false } = options
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(dataArray), gl.STATIC_DRAW);
+    /** 告诉属性如何从缓冲中读取数据 */
+    // const size = 2;          // 每次迭代运行提取两个单位数据
+    // const type = gl.FLOAT;   // 每个单位的数据类型是32位浮点型
+    // const normalize = false; // 不需要归一化数据
+    const stride = 0;        // 0 = 移动单位数量 * 每个单位占用内存（sizeof(type), 每次迭代运行运动多少内存到下一个数据开始点
+    const offset = 0;        // 从缓冲起始位置开始读取
+    gl.vertexAttribPointer(attributeLocation, size, type, normalize, stride, offset)
+  }
+}
+
 const createWebGLDemo = async () => {
   const _canvas: HTMLCanvasElement | null = document.querySelector('#_canvas');
   if (!_canvas) return;
@@ -59,43 +91,31 @@ const createWebGLDemo = async () => {
     if (!program) return;
     gl.useProgram(program);
 
-    /** 使用缓冲中的数据 */
-    // 获取属性值位置
-    const positionAttributeLocation = gl.getAttribLocation(program, 'a_position');
+    /** 全局属性设置 */
     const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
-    const colorUniformLocation = gl.getUniformLocation(program, "u_color");
-    // 属性从缓冲中获取数据，创建缓冲
-    const positionBuffer = gl.createBuffer();
-    // 启用对应顶点属性
-    gl.enableVertexAttribArray(positionAttributeLocation);
-    // 绑定位置信息缓冲，后续可以通过引用绑定点指向信息数据源
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-    /** 调整画布视图 */
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-  
-    /** 提供着色数据 */
-    const positions = [
-      10, 20,
-      80, 20,
-      10, 30,
-      10, 30,
-      80, 20,
-      80, 30,
-    ];
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
     gl.uniform2f(resolutionUniformLocation, gl.canvas.width, gl.canvas.height);
-    gl.uniform4f(colorUniformLocation, Math.random(), Math.random(), Math.random(), 1);
 
-    /** 告诉属性如何从缓冲中读取数据 */
-    const size = 2;          // 每次迭代运行提取两个单位数据
-    const type = gl.FLOAT;   // 每个单位的数据类型是32位浮点型
-    const normalize = true; // 不需要归一化数据
-    const stride = 0;        // 0 = 移动单位数量 * 每个单位占用内存（sizeof(type), 每次迭代运行运动多少内存到下一个数据开始点
-    const offset = 0;        // 从缓冲起始位置开始读取
-    gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset)
+    /** 提供着色数据 */
+    //  顶点位置
+    injectBufferAttribute(gl, program, 'a_position')(2, [
+      100, 100,
+      600, 100,
+      100, 400,
+      600, 100,
+      100, 400,
+      600, 400,
+    ]);
+
+    // 传入的色值
+    const rand = () => Math.random();
+    injectBufferAttribute(gl, program, 'a_color')(4, [
+      rand(), rand(), rand(), 1,
+      rand(), rand(), rand(), 1,
+      rand(), rand(), rand(), 1,
+      rand(), rand(), rand(), 1, 
+      rand(), rand(), rand(), 1,
+      rand(), rand(), rand(), 1,
+    ]);
 
     /** 开始着色 */
     // 三角形图元

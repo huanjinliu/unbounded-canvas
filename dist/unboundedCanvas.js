@@ -475,7 +475,10 @@
             var _context = this._context;
             if (!_context)
                 return;
-            // _context.clearRect(0, 0, this._element.width, this._element.height);
+            /** 清空画布 */
+            _context.viewport(0, 0, _context.canvas.width, _context.canvas.height);
+            _context.clearColor(0, 0, 0, 0);
+            _context.clear(_context.COLOR_BUFFER_BIT);
             this._renders.forEach(function (render) { return render(_context); });
         };
         /**
@@ -729,7 +732,11 @@
         UnboundedCanvas.prototype.addWebGLLayer = function (handler, options) {
             if (options === void 0) { options = {}; }
             var canvas = this.addLayer(__assign({ type: 'webgl' }, options));
-            canvas.addRender(handler).renderAll();
+            var context = canvas.getContext();
+            if (context)
+                handler === null || handler === void 0 ? void 0 : handler(context);
+            else
+                throw Error('add error!');
             return canvas;
         };
         /**

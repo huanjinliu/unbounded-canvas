@@ -54,7 +54,10 @@ class CanvasWebGL extends Canvas {
     const _context = this._context;
     if (!_context) return;
 
-    // _context.clearRect(0, 0, this._element.width, this._element.height);
+    /** 清空画布 */
+    _context.viewport(0, 0, _context.canvas.width, _context.canvas.height);
+    _context.clearColor(0, 0, 0, 0);
+    _context.clear(_context.COLOR_BUFFER_BIT);
 
     this._renders.forEach(render => render(_context));
   }

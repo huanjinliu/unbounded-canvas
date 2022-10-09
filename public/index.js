@@ -474,7 +474,10 @@
             var _context = this._context;
             if (!_context)
                 return;
-            // _context.clearRect(0, 0, this._element.width, this._element.height);
+            /** 清空画布 */
+            _context.viewport(0, 0, _context.canvas.width, _context.canvas.height);
+            _context.clearColor(0, 0, 0, 0);
+            _context.clear(_context.COLOR_BUFFER_BIT);
             this._renders.forEach(function (render) { return render(_context); });
         };
         /**
@@ -728,7 +731,11 @@
         UnboundedCanvas.prototype.addWebGLLayer = function (handler, options) {
             if (options === void 0) { options = {}; }
             var canvas = this.addLayer(__assign({ type: 'webgl' }, options));
-            canvas.addRender(handler).renderAll();
+            var context = canvas.getContext();
+            if (context)
+                handler === null || handler === void 0 ? void 0 : handler(context);
+            else
+                throw Error('add error!');
             return canvas;
         };
         /**
@@ -1245,10 +1252,305 @@
         return UnboundedCanvas;
     }());
 
-    var vertex = "attribute vec2 a_position;uniform vec2 u_resolution;void main(){vec2 zeroToOne=a_position/u_resolution;vec2 zeroToTwo=zeroToOne*2.0;vec2 clipSpace=zeroToTwo-1.0;gl_Position=vec4(clipSpace*vec2(1,-1),0,1);}";
+    var vertex = "attribute vec2 a_position;attribute vec4 a_color;uniform vec2 u_resolution;varying vec4 v_color;varying vec2 v_position;void main(){vec2 zeroToOne=a_position/u_resolution;vec2 zeroToTwo=zeroToOne*2.0;vec2 clipSpace=zeroToTwo-1.0;gl_Position=vec4(clipSpace*vec2(1,-1),0,1);v_color=a_color;v_position=zeroToOne;}";
 
-    var fragment = "precision mediump float;uniform vec4 u_color;void main(){gl_FragColor=u_color;}";
+    var fragment = "precision highp float;uniform vec2 u_resolution;uniform vec2 u_firstPointPosition;varying vec2 v_position;uniform float u_size;uniform float u_gap;varying vec4 v_color;void main(){vec2 position=v_position*u_resolution-u_firstPointPosition;float unitSize=u_size+u_gap;float sizeRatio=u_size/unitSize;if((position.y-(floor(position.y/unitSize)*unitSize))/unitSize>sizeRatio)discard;if((position.x-(floor(position.x/unitSize)*unitSize))/unitSize>sizeRatio)discard;gl_FragColor=v_color;}";
 
+    /**
+     * 是否是相似色块
+     * @param {RGBA} color1 色值1
+     * @param {RGBA} color2 色值2
+     * @param {boolean} ignoreOpacity 是否忽略透明度
+     * @returns {boolean} 是否是同色值
+     */
+    var isSameRGBA = function (color1, color2, ignoreOpacity) {
+        if (ignoreOpacity === void 0) { ignoreOpacity = false; }
+        return (color1.r === color2.r &&
+            color1.g === color2.g &&
+            color1.b === color2.b &&
+            (!ignoreOpacity || color1.a === color2.a));
+    };
+
+    /** 加载图片 */
+    var loadImage = function (src) { return new Promise(function (resolve) {
+        var image = new Image();
+        image.src = src;
+        image.onload = function () {
+            resolve(image);
+        };
+    }); };
+
+    /** 获取图片数据 */
+    var getImageData = function (src) { return __awaiter(void 0, void 0, void 0, function () {
+        var image, img2Canvas, ctx, imageData, getPixelColor, getRangePixel;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, loadImage(src)];
+                case 1:
+                    image = _a.sent();
+                    if (!image)
+                        return [2 /*return*/, undefined];
+                    img2Canvas = document.createElement('canvas');
+                    img2Canvas.width = image.width;
+                    img2Canvas.height = image.height;
+                    ctx = img2Canvas.getContext('2d');
+                    if (!ctx)
+                        return [2 /*return*/, undefined];
+                    ctx.drawImage(image, 0, 0);
+                    imageData = ctx.getImageData(0, 0, img2Canvas.width, img2Canvas.height).data;
+                    getPixelColor = function (row, col) {
+                        var ind = (row * image.width + col) * 4;
+                        var r = imageData[ind];
+                        var g = imageData[ind + 1];
+                        var b = imageData[ind + 2];
+                        var a = imageData[ind + 3] / 255;
+                        return { r: r, g: g, b: b, a: a };
+                    };
+                    getRangePixel = function (startRow, startCol, endRow, endCol) {
+                        var range = [];
+                        if (endCol < startCol || endRow < endRow)
+                            return range;
+                        for (var y = startCol; y < endCol; y++) {
+                            range[endCol - startCol] = [];
+                            for (var x = startRow; x < endRow; x++) {
+                                range[endCol - startCol].push(getPixelColor(x, y));
+                            }
+                        }
+                        return range;
+                    };
+                    return [2 /*return*/, {
+                            getPixelColor: getPixelColor,
+                            getRangePixel: getRangePixel,
+                            /**
+                             * 遍历像素值
+                             * ...r, g, b, a...每四个色值元素组成一个像素
+                             * @param {number} unitSize 每个单位的尺寸
+                             * @param {Function} callback 回调函数
+                             */
+                            mapPixels: function (unitSize, callback) {
+                                // 每个单位内部遍历
+                                var mapUnit = function (unitCol, unitRow) {
+                                    for (var y = 0; y < unitSize; y++) {
+                                        for (var x = 0; x < unitSize; x++) {
+                                            var row = unitRow * unitSize + y;
+                                            var col = unitCol * unitSize + x;
+                                            callback({
+                                                x: col,
+                                                y: row,
+                                                rgba: getPixelColor(row, col),
+                                                unit: unitSize > 0 ? { x: x, y: y } : undefined,
+                                            });
+                                        }
+                                    }
+                                };
+                                for (var y = 0; y < Math.floor(image.height / unitSize); y++) {
+                                    for (var x = 0; x < Math.floor(image.width / unitSize); x++) {
+                                        mapUnit(x, y);
+                                    }
+                                }
+                            },
+                            width: image.width,
+                            height: image.height,
+                        }];
+            }
+        });
+    }); };
+
+    /**
+     * 计算范围内连续性最高的值
+     */
+    var calcMostRelated = function (values, isRelated) {
+        var result = {
+            times: 0,
+            value: undefined,
+        };
+        var flags = [];
+        var findRelatedAround = function (x, y) {
+            if (flags[y] && flags[y][x])
+                return 0;
+            // 标记自身
+            if (flags[y] === undefined)
+                flags[y] = [];
+            flags[y][x] = true;
+            // 色值
+            var value = values[y][x];
+            // 关联次数
+            var times = 1;
+            // 判断四周相似值
+            ([
+                [y - 1, x],
+                [y + 1, x],
+                [y, x - 1],
+                [y, x + 1], // 右
+            ]).forEach(function (_a) {
+                var targetY = _a[0], targetX = _a[1];
+                if (!values[targetY] || !values[targetY][targetX])
+                    return;
+                if (isRelated(value, values[targetY][targetX])) {
+                    times += findRelatedAround(targetX, targetY);
+                }
+            });
+            return times;
+        };
+        values.forEach(function (rowArrays, row) {
+            rowArrays.forEach(function (value, col) {
+                var times = findRelatedAround(col, row);
+                if (times > result.times)
+                    result = { times: times, value: value };
+            });
+        });
+        return result;
+    };
+
+    /**
+     * 计算出现次数最多的值
+     */
+    var calcMostAppear = function (values, isSame) {
+        var valueTimes = values.reduce(function (resule, value) {
+            var _result = resule;
+            var index = _result.findIndex(function (item) { return isSame(item.value, value); });
+            if (index > -1)
+                _result[index].times++;
+            else
+                _result.push({ times: 1, value: value });
+            return _result;
+        }, []);
+        valueTimes.sort(function (a, b) { return b.times - a.times; });
+        return valueTimes;
+    };
+
+    var pixelated = function (src, options) {
+        if (options === void 0) { options = {}; }
+        return __awaiter(void 0, void 0, void 0, function () {
+            var imageData, getPixelatedData;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, getImageData(src)];
+                    case 1:
+                        imageData = _a.sent();
+                        if (imageData === undefined)
+                            return [2 /*return*/];
+                        getPixelatedData = function (_imageData, _options) {
+                            var _a = _options.mode, mode = _a === void 0 ? 'use-middle' : _a, _b = _options.size, size = _b === void 0 ? 1 : _b, _c = _options.gap, gap = _c === void 0 ? 0 : _c;
+                            var getRangePixel = _imageData.getRangePixel, mapPixels = _imageData.mapPixels, width = _imageData.width, height = _imageData.height;
+                            var points = [];
+                            var drawStrategies = {
+                                /** 策略 1：使用颜色出现最多的颜色作为像素块填充 */
+                                'use-most': function () {
+                                    var colors = [];
+                                    mapPixels(size + gap, function (_a) {
+                                        var x = _a.x, y = _a.y, rgba = _a.rgba, unit = _a.unit;
+                                        if (unit && unit.x === 0 && unit.y === 0)
+                                            colors = [];
+                                        colors.push(rgba);
+                                        var lastIndex = size - 1;
+                                        // 当遍历单位区域到最后一个像素
+                                        if (unit && unit.x === lastIndex && unit.y === lastIndex) {
+                                            var colorTimes = calcMostAppear(colors, isSameRGBA);
+                                            if (colorTimes.length === 0)
+                                                return;
+                                            console.log(colorTimes);
+                                            var theMostColor = colorTimes[0].value;
+                                            points.push({
+                                                col: Math.floor(x / size),
+                                                row: Math.floor(y / size),
+                                                fill: theMostColor,
+                                            });
+                                        }
+                                    });
+                                },
+                                /** 策略 2：使用出现的第一个颜色作为像素块填充 */
+                                'use-first': function () {
+                                    mapPixels(size + gap, function (_a) {
+                                        var x = _a.x, y = _a.y, rgba = _a.rgba, unit = _a.unit;
+                                        if (rgba.a === 0)
+                                            return;
+                                        if (unit && unit.x === 0 && unit.y === 0) {
+                                            points.push({
+                                                col: Math.floor(x / size),
+                                                row: Math.floor(y / size),
+                                                fill: rgba,
+                                            });
+                                        }
+                                    });
+                                },
+                                /** 策略 3：使用中间出现的颜色作为像素块填充 */
+                                'use-middle': function () {
+                                    mapPixels(size + gap, function (_a) {
+                                        var x = _a.x, y = _a.y, rgba = _a.rgba, unit = _a.unit;
+                                        if (rgba.a === 0)
+                                            return;
+                                        var middleIndex = Math.floor(size / 2);
+                                        if (unit && unit.x === middleIndex && unit.y === middleIndex) {
+                                            points.push({
+                                                col: Math.floor(x / size),
+                                                row: Math.floor(y / size),
+                                                fill: rgba,
+                                            });
+                                        }
+                                    });
+                                },
+                                /** 策略 4：使用最后出现的颜色作为像素块填充 */
+                                'use-last': function () {
+                                    mapPixels(size + gap, function (_a) {
+                                        var x = _a.x, y = _a.y, rgba = _a.rgba, unit = _a.unit;
+                                        if (rgba.a === 0)
+                                            return;
+                                        var lastIndex = size - 1;
+                                        if (unit && unit.x === lastIndex && unit.y === lastIndex) {
+                                            points.push({
+                                                col: Math.floor(x / size),
+                                                row: Math.floor(y / size),
+                                                fill: rgba,
+                                            });
+                                        }
+                                    });
+                                },
+                                /**
+                                 * 策略 5：使用范围内连续色值最多的颜色作为像素块填充
+                                 * @param {number} spread 拓展范围
+                                 */
+                                'use-most-related': function (spread) {
+                                    if (spread === void 0) { spread = 0; }
+                                    mapPixels(size + gap, function (_a) {
+                                        var x = _a.x, y = _a.y; _a.rgba; var unit = _a.unit;
+                                        if (!unit)
+                                            return;
+                                        // 当遍历单位区域到最后一个像素
+                                        if (unit && unit.x === 0 && unit.y === 0) {
+                                            var color = calcMostRelated(getRangePixel(y - spread, x - spread, y + size - 1 + spread, x + size - 1 + spread), isSameRGBA).value;
+                                            if (!color)
+                                                return;
+                                            points.push({
+                                                col: Math.floor(x / size),
+                                                row: Math.floor(y / size),
+                                                fill: color,
+                                            });
+                                        }
+                                    });
+                                }
+                            };
+                            drawStrategies[mode]();
+                            return Promise.resolve({
+                                cols: Math.floor(width / size),
+                                rows: Math.floor(height / size),
+                                points: points,
+                            });
+                        };
+                        return [2 /*return*/, getPixelatedData(imageData, options)];
+                }
+            });
+        });
+    };
+
+    /** 格子大小 */
+    var GRID_SIZE = 5;
+    /** 格子间隔 */
+    var GRID_GAP = 1;
+    /** 最小格子尺寸 */
+    var GRID_MIN_SIZE = 3;
+    /** 最大格子尺寸 */
+    var GRID_MAX_SIZE = 500;
     /**
      * 创建并生成着色器
      */
@@ -1293,71 +1595,141 @@
         console.log(gl.getProgramInfoLog(program));
         gl.deleteProgram(program);
     };
+    /**
+     * 注入着色缓冲属性
+     */
+    var createAttributeInjector = function (gl, program, attributeName) {
+        var attributeLocation = gl.getAttribLocation(program, attributeName);
+        // 属性从缓冲中获取数据，创建缓冲
+        var positionBuffer = gl.createBuffer();
+        return function (size, dataArray, options) {
+            if (options === void 0) { options = {}; }
+            var _a = options.type, type = _a === void 0 ? gl.FLOAT : _a, _b = options.normalize, normalize = _b === void 0 ? false : _b;
+            // 绑定位置信息缓冲，后续可以通过引用绑定点指向信息数据源
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            // 启用对应顶点属性
+            gl.enableVertexAttribArray(attributeLocation);
+            // 注入数据
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(dataArray), gl.STATIC_DRAW);
+            /** 告诉属性如何从缓冲中读取数据 */
+            // const size = 2;          // 每次迭代运行提取两个单位数据
+            // const type = gl.FLOAT;   // 每个单位的数据类型是32位浮点型
+            // const normalize = false; // 不需要归一化数据
+            var stride = 0; // 0 = 移动单位数量 * 每个单位占用内存（sizeof(type), 每次迭代运行运动多少内存到下一个数据开始点
+            var offset = 0; // 从缓冲起始位置开始读取
+            gl.vertexAttribPointer(attributeLocation, size, type, normalize, stride, offset);
+        };
+    };
     var createWebGLDemo = function () { return __awaiter(void 0, void 0, void 0, function () {
-        var _canvas, unbounedCanvas, button;
+        var _canvas, unbounedCanvas, program, locationInjector, colorInjector, layerCanvas, button;
         return __generator(this, function (_a) {
-            _canvas = document.querySelector('#_canvas');
-            if (!_canvas)
-                return [2 /*return*/];
-            unbounedCanvas = new UnboundedCanvas(_canvas, {
-                width: document.body.clientWidth,
-                height: document.body.clientHeight,
-            });
-            unbounedCanvas.addWebGLLayer(function (gl) {
-                /** 创建并使用着色程序 */
-                var program = createWebGLProgram(gl, vertex, fragment);
-                if (!program)
-                    return;
-                gl.useProgram(program);
-                /** 使用缓冲中的数据 */
-                // 获取属性值位置
-                var positionAttributeLocation = gl.getAttribLocation(program, 'a_position');
-                var resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
-                var colorUniformLocation = gl.getUniformLocation(program, "u_color");
-                // 属性从缓冲中获取数据，创建缓冲
-                var positionBuffer = gl.createBuffer();
-                // 启用对应顶点属性
-                gl.enableVertexAttribArray(positionAttributeLocation);
-                // 绑定位置信息缓冲，后续可以通过引用绑定点指向信息数据源
-                gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-                /** 调整画布视图 */
-                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-                gl.clearColor(0, 0, 0, 0);
-                gl.clear(gl.COLOR_BUFFER_BIT);
-                /** 提供着色数据 */
-                var positions = [
-                    10, 20,
-                    80, 20,
-                    10, 30,
-                    10, 30,
-                    80, 20,
-                    80, 30,
-                ];
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-                gl.uniform2f(resolutionUniformLocation, gl.canvas.width, gl.canvas.height);
-                gl.uniform4f(colorUniformLocation, Math.random(), Math.random(), Math.random(), 1);
-                /** 告诉属性如何从缓冲中读取数据 */
-                var size = 2; // 每次迭代运行提取两个单位数据
-                var type = gl.FLOAT; // 每个单位的数据类型是32位浮点型
-                var normalize = true; // 不需要归一化数据
-                var stride = 0; // 0 = 移动单位数量 * 每个单位占用内存（sizeof(type), 每次迭代运行运动多少内存到下一个数据开始点
-                var offset = 0; // 从缓冲起始位置开始读取
-                gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
-                /** 开始着色 */
-                // 三角形图元
-                var primitiveType = gl.TRIANGLES;
-                // 读取起始位置
-                var first = 0;
-                // 顶点着色器将运行次数
-                var count = 6;
-                gl.drawArrays(primitiveType, first, count);
-            });
-            button = document.querySelector('#back_center');
-            if (button)
-                button.addEventListener('click', function () {
-                    unbounedCanvas === null || unbounedCanvas === void 0 ? void 0 : unbounedCanvas.focus([0, 0]);
-                });
-            return [2 /*return*/];
+            switch (_a.label) {
+                case 0:
+                    _canvas = document.querySelector('#_canvas');
+                    if (!_canvas)
+                        return [2 /*return*/];
+                    unbounedCanvas = new UnboundedCanvas(_canvas, {
+                        width: document.body.clientWidth,
+                        height: document.body.clientHeight,
+                        unit: {
+                            size: GRID_SIZE,
+                            gap: GRID_GAP,
+                            // sticky: true,
+                        },
+                        zoom: {
+                            min: GRID_MIN_SIZE / GRID_SIZE,
+                            max: GRID_MAX_SIZE / GRID_SIZE,
+                        }
+                    });
+                    layerCanvas = unbounedCanvas.addWebGLLayer(function (gl) {
+                        /** 创建并使用着色程序 */
+                        program = createWebGLProgram(gl, vertex, fragment);
+                        if (!program)
+                            return;
+                        gl.useProgram(program);
+                        /** 全局属性设置 */
+                        var resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
+                        gl.uniform2f(resolutionUniformLocation, gl.canvas.width, gl.canvas.height);
+                        locationInjector = createAttributeInjector(gl, program, 'a_position');
+                        colorInjector = createAttributeInjector(gl, program, 'a_color');
+                    });
+                    return [4 /*yield*/, pixelated('./assets/test.png', {
+                            size: 5,
+                            gap: 0,
+                            mode: 'use-most-related',
+                        })
+                            .then(function (imageData) {
+                            console.dir(imageData);
+                            if (!imageData)
+                                return;
+                            imageData.rows; imageData.cols; imageData.points;
+                            layerCanvas
+                                .addRender(function (gl) {
+                                if (!program)
+                                    return;
+                                var _a = unbounedCanvas.getOptions(), width = _a.width, height = _a.height, unitSize = _a.unitSize, unitGap = _a.unitGap, contentCenter = _a.contentCenter;
+                                var unitFirstPoint = unbounedCanvas.getUnitFirstPoint(contentCenter);
+                                var rectData = [];
+                                var colorData = [];
+                                /**
+                                 * 绘制方块
+                                 */
+                                var fillRect = function (x, y, w, h, fill) {
+                                    var _a;
+                                    var a = (_a = fill.a) !== null && _a !== void 0 ? _a : 1;
+                                    rectData.push(x, y, x + w, y, x, y + h, x + w, y, x, y + h, x + w, y + h);
+                                    colorData.push(fill.r / 255, fill.g / 255, fill.b / 255, a, fill.r / 255, fill.g / 255, fill.b / 255, a, fill.r / 255, fill.g / 255, fill.b / 255, a, fill.r / 255, fill.g / 255, fill.b / 255, a, fill.r / 255, fill.g / 255, fill.b / 255, a, fill.r / 255, fill.g / 255, fill.b / 255, a);
+                                };
+                                var firstUniformLocation = gl.getUniformLocation(program, "u_firstPointPosition");
+                                gl.uniform2f(firstUniformLocation, unitFirstPoint.x, unitFirstPoint.y);
+                                var sizeUniformLocation = gl.getUniformLocation(program, "u_size");
+                                gl.uniform1f(sizeUniformLocation, unitSize);
+                                var gapUniformLocation = gl.getUniformLocation(program, "u_gap");
+                                gl.uniform1f(gapUniformLocation, unitGap);
+                                // console.dir(height * width / (size ** 2))
+                                // for (let y = unitFirstPoint.y; y < height + size; y += size) {
+                                //   for (let x = unitFirstPoint.x; x < width + size; x += size) {
+                                //     fillRect(x, y, unitSize, unitSize, { r: 242, g: 242, b: 242, a: 1 });
+                                //   }
+                                // };
+                                // console.log(unitFirstPoint.x, unitFirstPoint.y, width, height)
+                                fillRect(0, 0, width, height, { r: 242, g: 242, b: 242, a: 1 });
+                                // points.forEach(({ col, row, fill }) => {
+                                //   if (
+                                //     (fill.r === 255 && fill.g === 255 && fill.b === 255) ||
+                                //     fill.a === 0
+                                //   ) return;
+                                //   const point = [Math.floor(- cols / 2) + col, Math.floor(- rows / 2) + row - 10];
+                                //   fillRect(
+                                //     contentCenter.x * devicePixelRatio + point[0] * size - halfSize,
+                                //     contentCenter.y * devicePixelRatio + point[1] * size - halfSize,
+                                //     unitSize,
+                                //     unitSize,
+                                //     fill,
+                                //   );
+                                // })
+                                locationInjector(2, rectData);
+                                colorInjector(4, colorData);
+                                /** 开始着色 */
+                                // 三角形图元
+                                var primitiveType = gl.TRIANGLES;
+                                // 读取起始位置
+                                var first = 0;
+                                // 顶点着色器将运行次数
+                                var count = rectData.length / 2;
+                                gl.drawArrays(primitiveType, first, count);
+                            })
+                                .renderAll();
+                        })];
+                case 1:
+                    _a.sent();
+                    button = document.querySelector('#back_center');
+                    if (button)
+                        button.addEventListener('click', function () {
+                            unbounedCanvas === null || unbounedCanvas === void 0 ? void 0 : unbounedCanvas.focus([0, 0]);
+                        });
+                    return [2 /*return*/];
+            }
         });
     }); };
     createWebGLDemo();

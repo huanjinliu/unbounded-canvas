@@ -1,1 +1,1 @@
-import './webgl-demo';
+import './radius-rect-webgl-demo';

@@ -325,15 +325,17 @@ class UnboundedCanvas {
    * 添加webgl画布
    */
   addWebGLLayer  (
-    handler: CanvasWebGLRender,
-    options: Partial<Omit<CreateCanvasWebGLOptions, 'styles'> & CommonCreateCanvasOptions> = {}
+    handler?: CanvasWebGLRender,
+    options: Partial<Omit<CreateCanvasWebGLOptions, 'styles'> & CommonCreateCanvasOptions> = {},
   ) {
     const canvas = this.addLayer({
       type: 'webgl',
       ...options,
     }) as CanvasWebGL;
 
-    canvas.addRender(handler).renderAll();
+    const context = canvas.getContext();
+    if (context) handler?.(context);
+    else throw Error('add error!');
 
     return canvas;
   }

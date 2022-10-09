@@ -4,6 +4,7 @@ attribute vec4 a_color;
 uniform vec2 u_resolution;
 
 varying vec4 v_color;
+varying vec2 v_position;
 
 void main() {
   // 从像素坐标转换到 0.0 到 1.0
@@ -20,4 +21,5 @@ void main() {
 
   // 将颜色值传递给片断着色器
   v_color = a_color;
+  v_position = zeroToOne;
 }

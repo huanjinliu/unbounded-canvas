@@ -111,7 +111,7 @@ declare class UnboundedCanvas {
     /**
      * 添加webgl画布
      */
-    addWebGLLayer(handler: CanvasWebGLRender, options?: Partial<Omit<CreateCanvasWebGLOptions, 'styles'> & CommonCreateCanvasOptions>): CanvasWebGL;
+    addWebGLLayer(handler?: CanvasWebGLRender, options?: Partial<Omit<CreateCanvasWebGLOptions, 'styles'> & CommonCreateCanvasOptions>): CanvasWebGL;
     /**
      * 获取图层画布
      */
